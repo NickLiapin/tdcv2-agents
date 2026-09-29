@@ -10,6 +10,10 @@
   "homepage": "https://nickliapin.github.io/tdcv2/",
   "repository": "https://github.com/NickLiapin/tdcv2-agents",
   "license": "MIT",
+  "documentationUrl": "https://github.com/NickLiapin/tdcv2-agents#readme",
+  "supportUrl": "https://github.com/NickLiapin/tdcv2-agents/issues",
+  "privacyPolicyUrl": "https://github.com/NickLiapin/tdcv2-agents/blob/main/PRIVACY.md",
+  "termsOfServiceUrl": "https://github.com/NickLiapin/tdcv2-agents/blob/main/LICENSE",
   "keywords": [
     "test-data",
     "fixtures",

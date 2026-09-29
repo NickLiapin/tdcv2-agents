@@ -58,10 +58,15 @@ Network access, all of it:
 - the plugin starts the server with `npx -y tdcv2-mcp@<the plugin's version>`
   (`scripts/mcp-launch.mjs`), so the first start downloads that exact version and its
   dependencies, the TDCv2 engine among them, from the npm registry;
-- `npx -y tdcv2-mcp …` in the commands above does the same;
-- data packs are downloaded only when you or the agent run `tdcv2 pack add`.
+- `npx -y tdcv2-mcp …` in the commands above does the same, and so does `npx -y tdcv2 …`
+  when the agent runs the engine in a project that has none of its own;
+- with an engine of another version, the agent may read that version's doc page from
+  `raw.githubusercontent.com`;
+- data packs are downloaded only when you or the agent run `tdcv2 pack add`;
+- a config with `<gen type="http" src="…">` sends the named values to that URL — only if
+  someone writes such a config.
 
-Nothing else is fetched, and nothing is sent.
+Nothing else is fetched, and nothing is sent. The full policy: [PRIVACY.md](PRIVACY.md).
 
 ## Versions
 
