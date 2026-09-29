@@ -5,13 +5,20 @@
 #
 # npm trusts this workflow (Trusted Publishing, OIDC); the MCP Registry trusts
 # the repository owner's GitHub identity (OIDC). `workflow_dispatch` runs every
-# check and skips the uploads, so a release can be proven before it is spent.
+# check and skips the uploads, so a release can be proven before it is spent —
+# unless `registry` is set: then the MCP Registry gets the version on main (to
+# catch it up after a failed step). A version already on npm is not published again.
 name: release
 
 on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      registry:
+        description: Publish the version on main to the MCP Registry
+        type: boolean
+        default: false
 
 permissions:
   id-token: write   # npm Trusted Publishing and the MCP Registry
@@ -49,8 +56,10 @@ jobs:
         working-directory: mcp
       - name: publish
         if: github.ref_type == 'tag'
-        run: npm publish --access public
         working-directory: mcp
+        run: |
+          v=$(node -p "require('./package.json').version")
+          if npm view "tdcv2-mcp@$v" version >/dev/null 2>&1; then echo "tdcv2-mcp@$v is already on npm"; else npm publish --access public; fi
 
   mcp-registry:
     needs: npm
@@ -60,7 +69,7 @@ jobs:
       - name: mcp-publisher
         run: curl -sL "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_linux_amd64.tar.gz" | tar xz mcp-publisher
       - name: publish
-        if: github.ref_type == 'tag'
+        if: github.ref_type == 'tag' || inputs.registry
         run: |
           ./mcp-publisher login github-oidc
           ./mcp-publisher publish
