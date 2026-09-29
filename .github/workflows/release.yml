@@ -1,0 +1,75 @@
+# One tag, three places: tdcv2-mcp on npm, the entry in the official MCP Registry,
+# and a GitHub release — no tokens, no one typing codes.
+#
+#   git tag v0.1.1 && git push origin v0.1.1
+#
+# npm trusts this workflow (Trusted Publishing, OIDC); the MCP Registry trusts
+# the repository owner's GitHub identity (OIDC). `workflow_dispatch` runs every
+# check and skips the uploads, so a release can be proven before it is spent.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  id-token: write   # npm Trusted Publishing and the MCP Registry
+  contents: write   # the GitHub release
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: one version everywhere
+        run: node scripts/check-version.mjs "${{ github.ref_type == 'tag' && github.ref_name || '' }}"
+      - run: npm ci
+        working-directory: mcp
+      - run: node test/smoke.mjs
+        working-directory: mcp
+
+  npm:
+    needs: gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      # Trusted Publishing needs a newer npm than Node 22 ships with.
+      - run: npm install -g npm@latest
+      - run: npm ci
+        working-directory: mcp
+      # `prepack` copies skills/tdcv2 into the package.
+      - run: npm pack --dry-run
+        working-directory: mcp
+      - name: publish
+        if: github.ref_type == 'tag'
+        run: npm publish --access public
+        working-directory: mcp
+
+  mcp-registry:
+    needs: npm
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: mcp-publisher
+        run: curl -sL "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_linux_amd64.tar.gz" | tar xz mcp-publisher
+      - name: publish
+        if: github.ref_type == 'tag'
+        run: |
+          ./mcp-publisher login github-oidc
+          ./mcp-publisher publish
+
+  github-release:
+    needs: mcp-registry
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" --title "${GITHUB_REF_NAME#v}" --generate-notes
+        env: { GH_TOKEN: "${{ github.token }}" }
