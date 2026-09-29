@@ -89,6 +89,12 @@ jobs:
     if: github.ref_type == 'tag'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - run: gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" --title "${GITHUB_REF_NAME#v}" --generate-notes
-        env: { GH_TOKEN: "${{ github.token }}" }
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const tag = context.ref.replace('refs/tags/', '');
+            try {
+              await github.rest.repos.getReleaseByTag({ ...context.repo, tag });
+            } catch {
+              await github.rest.repos.createRelease({ ...context.repo, tag_name: tag, name: tag.slice(1), generate_release_notes: true });
+            }
