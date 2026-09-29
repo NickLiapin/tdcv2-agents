@@ -13,7 +13,6 @@ Two parts, one version:
 - **an MCP server**, `tdcv2-mcp` — the same, as tools: check a config, generate, find data
   packs, summarise a file, read the docs (`mcp/`).
 
-> **Not released yet.** The commands below work once `tdcv2-mcp` is on npm.
 
 ## Install
 
@@ -57,7 +56,7 @@ with npm, or data packs with `tdcv2 pack add`.
 
 ## Versions
 
-This release, 0.1.0, is checked against TDCv2 0.3.2. The skill's reference is
+This release, 0.1.0, is checked against TDCv2 0.3.3. The skill's reference is
 built from the engine's documentation for that version; with another engine version the
 agent reads that version's pages, and the engine's own `check` has the last word.
 

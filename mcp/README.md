@@ -8,8 +8,6 @@ anywhere — the server only runs the engine locally.
 It is the same knowledge as the TDCv2 skill (`../skill/tdcv2`), as tools — for clients
 without a terminal, or that prefer tools to skills.
 
-> **Not on npm yet.** Until it is, run it from this repository: `npm ci` in `mcp/`, then
-> use `node <repo>/mcp/src/cli.mjs` wherever the examples below say `npx -y tdcv2-mcp`.
 
 ## Connect it
 

@@ -1,6 +1,6 @@
 # Traps — what `check` does and does not tell you
 
-Every example below was run through `tdcv2` 0.3.2; the `check` lines and outputs are
+Every example below was run through `tdcv2` 0.3.3; the `check` lines and outputs are
 what the engine printed. Generated from the engine's answers — do not edit by hand.
 
 ## Silent — `check` is clean, the data is not what was meant
@@ -384,11 +384,7 @@ There is no list to draw from without repeats. `tdcv2` 0.3.2 passes it at `check
 </tdc>
 ```
 
-`check`: clean. The run:
-
-```
-tdcv2: uniq: sequence "E" — template "common.internet.email" does not resolve to a value list, so its values cannot be enumerated for a unique draw
-```
+`check`: TDC218 uniq="true" is not allowed on <sequence name="E">: template "common.internet.email" is a generator — it composes each value when asked instead of listing them, so there are no values to draw without replacement — A counter never repeats, so build the value around one instead of asking for uniq=: <sequence name="Email"><data>user</data><gen type="increment"/><data>@example.test</data></sequence>. Or draw from something that lists its values — a text list, a value-list pack, a file column, a plain integer range, a regex.
 
 **Right**
 

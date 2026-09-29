@@ -1,6 +1,6 @@
 # TDCv2 reference — index
 
-Built from the engine's docs at v0.3.2+19 (a4cf85877, 2026-09-27) — docs after v0.3.2, for the next release; they say they cover TDC 0.3.2 (updated 27 September 2026).
+Built from the engine's docs at v0.3.3 (2026-09-29); they say they cover TDC 0.3.3 (updated 27 September 2026).
 Open a page with the Read tool: `reference/<path>`. Pages link to each other by relative path.
 For another engine version (`npx -y tdcv2 --version`), the same page of that version:
 `https://raw.githubusercontent.com/NickLiapin/tdcv2/v<version>/docs/<path>`. What `check` says beats any page.
