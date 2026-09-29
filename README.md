@@ -51,12 +51,21 @@ config that reproduces it.
 
 The engine runs locally. Neither the skill nor the server sends your data or your configs
 anywhere. The server reads `.tdc` files and writes generated files only inside the project
-folder it is started in. The only network access is what you ask for: installing packages
-with npm, or data packs with `tdcv2 pack add`.
+folder it is started in.
+
+Network access, all of it:
+
+- the plugin starts the server with `npx -y tdcv2-mcp@<the plugin's version>`
+  (`scripts/mcp-launch.mjs`), so the first start downloads that exact version and its
+  dependencies, the TDCv2 engine among them, from the npm registry;
+- `npx -y tdcv2-mcp …` in the commands above does the same;
+- data packs are downloaded only when you or the agent run `tdcv2 pack add`.
+
+Nothing else is fetched, and nothing is sent.
 
 ## Versions
 
-This release, 0.1.0, is checked against TDCv2 0.3.3. The skill's reference is
+This release, 0.1.1, is checked against TDCv2 0.3.3. The skill's reference is
 built from the engine's documentation for that version; with another engine version the
 agent reads that version's pages, and the engine's own `check` has the last word.
 

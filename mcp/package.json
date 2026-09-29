@@ -1,6 +1,6 @@
 {
   "name": "tdcv2-mcp",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "MCP server for TDCv2: agents write a .tdc config, check it and generate test data locally — deterministic, same seed, same bytes.",
   "type": "module",
   "bin": {
@@ -32,7 +32,7 @@
     "tdcv2": "^0.3.3",
     "zod": "^4.6.5"
   },
-  "mcpName": "io.github.nickliapin/tdcv2",
+  "mcpName": "io.github.NickLiapin/tdcv2",
   "homepage": "https://github.com/NickLiapin/tdcv2-agents#readme",
   "repository": {
     "type": "git",

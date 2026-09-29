@@ -5,8 +5,10 @@ the agent writes a small `.tdc` config, the engine generates the rows **on your 
 and the same config gives the same file byte for byte on every run. Nothing is sent
 anywhere — the server only runs the engine locally.
 
-It is the same knowledge as the TDCv2 skill (`../skill/tdcv2`), as tools — for clients
-without a terminal, or that prefer tools to skills.
+It is the same knowledge as the TDCv2 skill, as tools — for clients without a terminal, or
+that prefer tools to skills. The skill itself ships in this package:
+`npx -y tdcv2-mcp install-skill` puts it where your agent looks for skills (`--help` for
+the options).
 
 
 ## Connect it
