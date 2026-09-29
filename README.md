@@ -1,0 +1,66 @@
+# TDCv2 for AI agents
+
+Let your coding agent make **test data** with [TDCv2](https://nickliapin.github.io/tdcv2/):
+it writes a small `.tdc` config, the TDCv2 engine generates the rows **on your machine**,
+and the same config gives the same file, byte for byte, every time you run it. CSV, JSON,
+SQL inserts or any text format; fields that agree with each other; exact shares; related
+tables; data packs for 95 languages and 198 countries.
+
+Two parts, one version:
+
+- **a skill** — teaches the agent the TDC language, the workflow and the traps
+  (`skills/tdcv2`);
+- **an MCP server**, `tdcv2-mcp` — the same, as tools: check a config, generate, find data
+  packs, summarise a file, read the docs (`mcp/`).
+
+> **Not released yet.** The commands below work once `tdcv2-mcp` is on npm.
+
+## Install
+
+**Claude Code** — the plugin brings both the skill and the server:
+
+```sh
+claude plugin marketplace add NickLiapin/tdcv2-agents
+claude plugin install tdcv2@tdcv2
+```
+
+**Codex, Copilot, Gemini CLI, Cursor and other agents that read skills** — put the skill
+where your agent looks for it:
+
+```sh
+npx -y tdcv2-mcp install-skill            # ~/.claude/skills/tdcv2
+npx -y tdcv2-mcp install-skill --agents   # ~/.agents/skills/tdcv2
+npx -y tdcv2-mcp install-skill --project  # ./.claude/skills/tdcv2
+npx -y tdcv2-mcp install-skill --dir <skills folder>
+```
+
+**Any MCP client** (Claude Desktop, Cursor, VS Code…):
+
+```json
+{ "mcpServers": { "tdcv2": { "command": "npx", "args": ["-y", "tdcv2-mcp"] } } }
+```
+
+On Windows use `"command": "npx.cmd"` if the client cannot start `npx`. Everything needs
+Node.js 20 or newer.
+
+Then ask in plain words — *"500 customers from 20 countries as CSV"*, *"a pytest test for
+validate_user on 50 different users"* — and the agent takes it from there: writes the
+config, checks it with the engine, generates, and hands you the file together with the
+config that reproduces it.
+
+## Privacy
+
+The engine runs locally. Neither the skill nor the server sends your data or your configs
+anywhere. The server reads `.tdc` files and writes generated files only inside the project
+folder it is started in. The only network access is what you ask for: installing packages
+with npm, or data packs with `tdcv2 pack add`.
+
+## Versions
+
+This release, 0.1.0, is checked against TDCv2 0.3.2. The skill's reference is
+built from the engine's documentation for that version; with another engine version the
+agent reads that version's pages, and the engine's own `check` has the last word.
+
+## License
+
+MIT

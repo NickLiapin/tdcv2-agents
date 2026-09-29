@@ -1,0 +1,187 @@
+# `<assert>` — a config that checks its own output
+
+**Use it when** the shape of your data matters to whoever consumes it, and you want the
+run to stop rather than hand over a file that quietly drifted.
+
+An assertion states a property the finished run must have. If it holds, nothing happens.
+If it doesn't, the run stops with your own sentence, before a single line is written.
+
+```xml
+<assert that="Tracked == 700" says="every shipped order should carry a tracking number"/>
+```
+
+It lives in `<env>`, beside [`<uniq>` and `<distinct>`](unique-values.md), because like
+them it states something the whole run must satisfy rather than something one column is.
+
+There are two of them. `that=` is read **once**, over whole-run numbers. `each=` is
+answered on **every row** — see [Every row](#every-row--each) below.
+
+## What is worth asserting
+
+Not what the config already states. You wrote `percent="70"` and you assert 70 percent —
+you have tested that TDC can count.
+
+The value is in what the config does **not** state. Here a filter and a condition stack
+up, and the share that reaches the file is nowhere in the text:
+
+```xml
+<tdc>
+  <env count="1000" seed="orders" local="en">
+    <sequence name="Status"><gen type="text" value="shipped,pending" percent="70,30"/></sequence>
+    <sequence name="Tracking" parent="Status.shipped">
+      <gen type="regex" value="[A-Z]{2}[0-9]{9}" if="Status == 'shipped' && _count % 4 != 0"/>
+    </sequence>
+    <sequence name="Tracked"><gen type="stat" of="Tracking" op="count"/></sequence>
+
+    <assert that="Tracked == 700" says="every shipped order should carry a tracking number"/>
+  </env>
+  <block>
+    <line><data>${{Status}},${{Tracking}}</data></line>
+  </block>
+</tdc>
+```
+
+`./run orders.tdc`
+
+```
+tdcv2: assert failed: every shipped order should carry a tracking number
+  Tracked == 700   with Tracked = 522
+```
+
+Nothing else in TDC has an opinion about this config. It parses, it validates, it runs,
+and 178 shipped orders come out with an empty tracking number. That is the failure an
+assertion is for.
+
+The exit code is 1, so CI stops on it.
+
+## At a glance
+
+| Attribute | Required   | What it does                                                                        |
+| :-------- | :--------- | :---------------------------------------------------------------------------------- |
+| `that`    | one of two | A condition over whole-run values, read once, in the [`if=`](../reference/expressions.md) language |
+| `each`    | one of two | A condition every row must satisfy, in the same language                             |
+| `says`    | yes        | The sentence a reader is given when it fails                                         |
+
+`says=` is required either way. An assertion that fires with only its expression to show
+has made the reader work out what it was for, months later, in a CI log. `that=` and
+`each=` cannot be written on one tag: they are checked a different number of times, and a
+reader could not tell which of the two the sentence describes.
+
+There is **no flag**. An assertion runs because it is written: a check that has to be
+remembered is a check nobody ran, on a config that looks verified.
+
+## Where the numbers come from
+
+`that=` reads columns, and the columns worth reading are usually
+[`<gen type="stat">`](../generators/stat.md) — one number for the whole run.
+
+```xml
+<env count="500" seed="clinic" local="en">
+    <sequence name="Visit"><gen type="date" from="2026-01-01" to="2026-06-30" format="YYYY-MM-DD"/></sequence>
+    <sequence name="Follow"><gen type="date" of="Visit" plus="7..30d" format="YYYY-MM-DD"/></sequence>
+    <sequence name="Ward"><gen type="text" value="A,B,C" percent="50,30,20"/></sequence>
+
+    <sequence name="Rows"><gen type="stat" of="Visit" op="count"/></sequence>
+    <sequence name="Wards"><gen type="stat" of="Ward" op="count"/></sequence>
+
+    <assert that="Rows == _total" says="every row has a visit date"/>
+    <assert that="Wards == _total" says="every row has a ward"/>
+</env>
+```
+
+`_total` is the row count, and it is the one built-in an assertion may read.
+
+## The rule that keeps it honest
+
+**Every name in `that=` must be the same on every row.** A `stat` column is, by
+construction. A one-value `text` column is, as a matter of fact. A drawn column is not,
+and is refused:
+
+```xml
+<sequence name="Amount"><gen type="number" value="1..500"/></sequence>
+<assert that="Amount > 0" says="every amount is positive"/>
+```
+
+`./run amounts.tdc`
+
+```
+tdcv2: assert ("Amount > 0"): "Amount" is not the same on every row, so this would have checked the first row and called the run verified. A whole-run assertion reads whole-run values: give it a <gen type="stat" of="Amount" op="…"/> column, or _total. To state it of every row instead, write each= rather than that=.
+```
+
+Without this rule, `that="Amount > 0"` would read row 0 and report on one row out of five
+hundred — a check that passed because it barely looked, wearing a badge that says
+verified. That is the same disease the whole feature exists to cure.
+
+A column that a `parent=` filter leaves **empty** on some rows is refused for the same
+reason: it has no single value for the run, so the condition would compare against
+whatever row 0 happened to hold. Summarise it with `op="count"` instead.
+
+## Every row — `each=`
+
+The refusal above is not a dead end; it is a signpost. "Every amount is positive" is a
+real claim, and `each=` is where it goes:
+
+```xml
+<sequence name="Amount"><gen type="number" value="1..500"/></sequence>
+<assert each="Amount > 0" says="every amount is positive"/>
+```
+
+The condition is answered on every row, in the same language `if=` speaks and over the
+same names — this row's columns, plus the row
+[built-ins](../reference/builtins.md). Nothing new to learn, and no `stat` column to
+build first.
+
+When a row breaks it, the run stops **on that row** and says which:
+
+```xml
+<sequence name="Fee"><gen type="number" value="-3..20"/></sequence>
+<assert each="Fee >= 0" says="a fee is never negative"/>
+```
+
+`./run fees.tdc (20 rows)`
+
+```
+tdcv2: assert failed on row 16: a fee is never negative
+  Fee >= 0   with Fee = -3
+```
+
+The exit code is 1, as with `that=`.
+
+**It stops at the first failing row rather than counting them all.** On a streaming engine
+the rows before it are already on disk, so "checks the whole file, then reports" is
+something not every engine could honestly promise — and a run whose data is already wrong
+is not made righter by finding out how wrong. The row it names is the first, always: rows
+are checked in order, before each one is written.
+
+**It holds however the rows are read, not only as text.** A program that takes the rows as
+objects gets the same refusal: `toArray()` and `toColumns()` check every row, `iterate()`
+checks each row just before handing it over, and `getAt(i)` checks the row it returns.
+Every library does the same under its own spelling (`to_array`, `ToArray`…). In Rust the
+whole run is made when the object is created, so there the refusal arrives at creation.
+
+That last point is why a config with an `each=` assertion **runs on one thread**. Workers
+each own a range of rows and would each stop at their own first failure, so the row a
+reader is shown would be whichever thread got there — a different number from the same
+config and the same seed. An explicit `--jobs` says so and carries on single-threaded.
+
+Otherwise there is no engine consequence: unlike `that=`, a per-row assertion needs no
+`stat` column, so a config with one still streams. See
+[large outputs](../guides/large-outputs.md).
+
+## What it does not do yet
+
+- **Asserting a check digit.** That is the trap — [`<compute>`](../compute/overview.md)
+  produced it, and recomputing it asserts that the same code agrees with itself.
+
+## Engines
+
+A `that=` assertion reads `stat` columns, and `stat` already routes a config to the
+in-memory engine — so it adds no engine consequence of its own. An `each=` assertion adds
+none either, beyond staying single-threaded. See
+[large outputs](../guides/large-outputs.md).
+
+## See also
+
+- [`stat`](../generators/stat.md) — where the numbers come from
+- [Expressions](../reference/expressions.md) — the language `that=` is written in
+- [Uniqueness](unique-values.md) — the other whole-run statements

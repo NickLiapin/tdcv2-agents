@@ -1,0 +1,205 @@
+# Narrowing with `filter`
+
+Without `filter`, a row draws from the whole pool. With it, a row draws only from the
+members the expression accepts.
+
+The obvious case: a patient at the northern clinic must see a doctor who works there.
+
+```xml
+<tdc>
+  <env count="10" seed="clinic" local="en">
+    <pool name="Doctors" count="6">
+      <sequence name="clinic"><gen type="text" value="North,South"/></sequence>
+      <sequence name="name"><gen type="template" value="person.lastName"/></sequence>
+    </pool>
+
+    <sequence name="Clinic"><gen type="text" value="North,South" percent="50,50"/></sequence>
+    <sequence name="Patient"><gen type="template" value="person.female.firstName"/></sequence>
+    <sequence name="Seen"><gen type="pool" value="Doctors" filter="clinic == Clinic"/></sequence>
+  </env>
+  <block>
+    <line><data>${{Clinic}} | ${{Patient}} -> Dr. ${{Seen.name}} (${{Seen.clinic}})</data></line>
+  </block>
+</tdc>
+```
+
+`./run clinic.tdc`
+
+```
+South | Barbara -> Dr. Smith (South)
+North | Mary -> Dr. Jones (North)
+South | Dorothy -> Dr. Garcia (South)
+South | Jennifer -> Dr. Johnson (South)
+North | Elizabeth -> Dr. Jones (North)
+North | Patricia -> Dr. Jones (North)
+North | Susan -> Dr. Williams (North)
+South | Sarah -> Dr. Smith (South)
+South | Margaret -> Dr. Garcia (South)
+North | Linda -> Dr. Jones (North)
+```
+
+The clinic column and the doctor's clinic agree on every row.
+
+## The draw stays uniform
+
+`filter` decides **which members are on offer**, not which one is taken. Among the
+members that pass, the pick is uniform — a northern patient can get any of the northern
+doctors.
+
+That is worth stating because the obvious alternative, "use the first member that
+matches", would hand every northern patient the same doctor and quietly destroy the
+spread the pool was built to have.
+
+## What a name means inside `filter`
+
+The expression is evaluated in **two scopes at once**: the candidate member's fields,
+and the current row's columns.
+
+| The name         | What it reads                                                         |
+| :--------------- | :-------------------------------------------------------------------- |
+| `clinic`         | a **field** of the candidate member, if the pool has one by that name |
+| `Clinic`         | a **column** of the current row                                       |
+| `Doctors.clinic` | always the candidate's field — the qualified form                     |
+| `North`          | a bare word, read as the literal string                               |
+
+The order matters: a bare name is looked up as a member field **first**, and only then
+as a row column. A name that is both is refused rather than guessed at:
+
+`./run clinic.tdc`
+
+```
+error[TDC232]: "clinic" in filter= is both a field of pool "Doctors" and a sequence — which one is meant is not decidable
+ --> clinic.tdc:8:27
+  |
+8 |     <sequence name="Seen"><gen type="pool" value="Doctors" filter="clinic == clinic"/></sequence>
+  |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+note: Rename one of them. Qualifying one side ("Doctors.clinic") does not help: the other "clinic" still reads as the member's field, so the test would compare a value with itself.
+```
+
+A qualified name that the pool has not got is caught too:
+
+`./run clinic.tdc`
+
+```
+error[TDC226]: filter= reads "Doctors.branch", but pool "Doctors" has no field "branch"
+ --> clinic.tdc:7:27
+  |
+7 |     <sequence name="Seen"><gen type="pool" value="Doctors" filter="Doctors.branch == Site"/></sequence>
+  |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+note: Fields of "Doctors": clinic.
+```
+
+An **unqualified** unknown name is left alone, on purpose: the expression language reads
+a bare word as a string literal, which is how `filter="clinic == North"` says "northern
+doctors only" without declaring anything.
+
+## It is a full expression
+
+`field == Column` is the common shape, but `filter` takes anything the
+[expression language](../constructs/conditional-output.md#comparison-operators)
+understands: `!=`, `<`, `>`, `<=`, `>=`, `&&`, `||`, `!`, and arithmetic.
+
+Comparison inside a filter follows the same rules as everywhere else, so a member holding
+`01` is found by a row producing `1` — see [Comparison and truth](../reference/comparison.md).
+
+That opens up the cases worth more than the clinic — a customer buying something they
+can afford:
+
+```xml
+<tdc>
+  <env count="8" seed="shop" local="en">
+    <pool name="Catalog" count="6">
+      <sequence name="item" uniq="true"><gen type="text" value="Kettle,Lamp,Chair,Desk,Rug,Clock"/></sequence>
+      <sequence name="price"><gen type="number" value="10..300"/></sequence>
+    </pool>
+
+    <sequence name="Budget"><gen type="number" value="50..250"/></sequence>
+    <sequence name="Buys"><gen type="pool" value="Catalog" filter="price <= Budget"/></sequence>
+  </env>
+  <block>
+    <line><data>budget ${{Budget}} -> ${{Buys.item}} at ${{Buys.price}}</data></line>
+  </block>
+</tdc>
+```
+
+`./run shop.tdc`
+
+```
+budget 232 -> Clock at 11
+budget 124 -> Desk at 92
+budget 61 -> Clock at 11
+budget 148 -> Clock at 11
+budget 208 -> Rug at 198
+budget 54 -> Clock at 11
+budget 102 -> Desk at 92
+budget 60 -> Clock at 11
+```
+
+Nobody buys above their budget, and nothing had to be listed by hand.
+
+> [!WARNING]
+> **Write `<=` and `&&` directly**
+>
+> TDC does not expand XML entities. `filter="price &lt;= Budget"` reaches the parser as
+> those nine characters and fails. Type the operator you mean.
+
+### What it costs
+
+Two paths, and which one runs is decided by how the filter is written:
+
+| The filter                           | How a row is answered                                               |
+| :----------------------------------- | :------------------------------------------------------------------ |
+| `field == Column` (either way round) | the pool is bucketed by that field **once**; a row costs one lookup |
+| anything else                        | the candidates are scanned, per row — linear in the pool size       |
+
+Both are correct. The difference is why a pool has a
+[size ceiling](overview.md#size) at all: a scan over a million members, two thousand
+times, is a real cost, and the ceiling is where the tool says so.
+
+## `filter` is not `if`, and `if` is not available here
+
+Elsewhere `if` narrows by asking about the **row**, once per row. `filter` asks about
+each **candidate**, once per member — thirty questions per row for a pool of thirty.
+
+On a pool reference only `filter` exists. `if` is [refused](../reference/errors.md),
+because a reference publishes a whole MEMBER rather than a value: a conditional one
+would register no `Ref.field` columns at all, and `${{Doctor.name}}` would reach the
+output as its own literal text.
+
+To leave some rows without a member, use `parent`. It masks the reference exactly as it
+masks any other sequence, and the fields come out empty on the rows it excludes:
+
+```xml
+<sequence name="Adult"><gen type="text" value="yes" if="Age >= 18"/></sequence>
+<sequence name="Seen" parent="Adult"><gen type="pool" value="Doctors" filter="clinic == Clinic"/></sequence>
+```
+
+## When nobody matches
+
+Because `filter` never produces an empty cell, "nobody matched" is an error rather than
+a gap. The message names the row and the value that narrowed it to nothing:
+
+`./run clinic.tdc`
+
+```
+tdcv2: pool "Doctors": no member satisfies filter="clinic == Clinic" for row 3 (Clinic="South"). A filter narrows the members a row may draw from; when it narrows them to none there is nothing to substitute. Add a member that matches, or widen the filter.
+```
+
+This particular one is a **run-time** refusal, because the validator cannot know that no
+member will come out `South` until the pool has been drawn. Where the contradiction IS
+provable from the config — both sides drawn from written lists that do not meet — `check`
+refuses it before the run, without guessing, as [`TDC225`](../reference/errors.md). The
+line between the two is what each side can be proven from, not when the failure happens to
+show up. The two fixes are in the message — add a member that matches, or widen the
+filter — and there is a third worth knowing: give the pool's field the same finite list
+the row's column draws from, so every value is represented.
+
+## Related
+
+- [Overview](overview.md) — what a pool is, and the size ceiling this page refers to
+- [Linking pools together](linking.md) — `filter` reading a field of _another_ pool
+  reference, which is how a chain is built
+- [Conditions](../constructs/conditional-output.md) — `if` in full, including the
+  operators `filter` shares with it

@@ -1,0 +1,188 @@
+# Increment & Decrement — counters
+
+**Use them when** you need a running counter instead of a random value — a
+sequential id or row number (1, 2, 3…), an SKU series that climbs by a fixed step,
+or a countdown that falls to zero.
+
+Both live inside a [`<sequence>`](../core-concepts/sequences.md): the sequence is
+computed once as an array, and each output row pulls the next value with
+`${{Name}}` [interpolation](../core-concepts/output-formatting.md).
+
+## At a glance
+
+| Attribute | Applies to               | Default | What it does                       |
+| :-------- | :----------------------- | :------ | :--------------------------------- |
+| `value`   | `increment`, `decrement` | `0`     | Starting value                     |
+| `step`    | `increment`, `decrement` | `1`     | Amount to add or subtract each row |
+
+Both counters are **position-based and deterministic**: each row takes the
+next value in the run. They ignore the [`seed`](../core-concepts/determinism.md)
+entirely (unlike the random generators), so the sequence is identical on every run —
+the outputs on this page are exact, not just illustrative.
+
+> [!NOTE]
+> **Under `parent=` the numbers are still 1..N, in an order the seed picks**
+>
+> A counter on a [child sequence](../guides/hierarchical-dependencies.md) numbers only the
+> rows the parent kept. Those rows carry exactly `1..N` with no gaps and no repeats — but
+> WHICH kept row gets which number is decided by the seed, so reading down the file you may
+> see 6, 4, 5, 1, 2, 3 rather than 1, 2, 3, 4, 5, 6.
+>
+> That is the price of a value every engine can compute from the row alone. Numbering the
+> kept rows in file order would mean counting the kept rows BEFORE each one, and the
+> streaming engine has no such running total — it answers row 900,000 without the 899,999
+> before it existing. Where you need the file order too, add `order="sequential"` to the
+> parent so the kept rows are contiguous.
+
+## `increment` — a rising counter
+
+Each row is the previous value plus [`step`](#step--the-stride). With the defaults
+(`value="0"`, `step="1"`) it counts up by one, but the common case is an id column
+that starts at 1.
+
+```xml
+<sequence name="Id"><gen type="increment" value="1"/></sequence>
+```
+
+`./run demo.tdc (count=5)`
+
+```
+1
+2
+3
+4
+5
+```
+
+Use it whenever you want a stable, gap-free id or row number — every row gets its own
+sequential value, and the whole column is reproducible across runs.
+
+## `decrement` — a falling counter
+
+Each row is the previous value minus [`step`](#step--the-stride). Same two
+attributes; only the direction flips.
+
+```xml
+<sequence name="Countdown"><gen type="decrement" value="100"/></sequence>
+```
+
+`./run demo.tdc (count=5)`
+
+```
+100
+99
+98
+97
+96
+```
+
+Reach for `decrement` when you need a countdown, a remaining-quantity column, or
+any reverse numbering that starts high and works its way down.
+
+## `step` — the stride
+
+[`step`](../reference/attributes.md) sets how far the counter moves between rows.
+It defaults to `1`. Give two counters the same start (`value="1"`) and different
+steps, and the stride is the only difference — the left one counts by one, the right
+one by five:
+
+```xml
+<sequence name="ByOne"><gen type="increment" value="1"/></sequence>
+<sequence name="ByFive"><gen type="increment" value="1" step="5"/></sequence>
+...
+<data>${{ByOne}}   ${{ByFive}}</data>
+```
+
+`./run demo.tdc (count=6)`
+
+```
+step=1   step=5
+1        1
+2        6
+3        11
+4        16
+5        21
+6        26
+```
+
+`step` works the same on `decrement` — it controls how big each drop is:
+
+```xml
+<sequence name="Full"><gen type="decrement" value="1000"/></sequence>
+<sequence name="ByHundred"><gen type="decrement" value="1000" step="100"/></sequence>
+```
+
+`./run demo.tdc (count=5)`
+
+```
+step=1   step=100
+1000     1000
+999      900
+998      800
+997      700
+996      600
+```
+
+Use a custom `step` for series that don't move by one: SKUs spaced by 5, a price
+that falls by a fixed amount, a gauge that ticks in tens.
+
+### Fractional steps
+
+`step` (and `value`) accept decimals, not just integers, which covers prices,
+percentages, or any measured quantity that moves in fractions:
+
+```xml
+<sequence name="Price"><gen type="decrement" value="9.99" step="0.50"/></sequence>
+```
+
+`./run demo.tdc (count=5)`
+
+```
+9.99
+9.49
+8.99
+8.49
+7.99
+```
+
+## Deterministic by design
+
+Counters never touch the random engine, so the same config produces the same run
+regardless of [`seed`](../core-concepts/determinism.md). Two runs with different
+seeds give byte-for-byte identical counter columns:
+
+```xml
+<gen type="increment" value="1" step="10"/>
+```
+
+`./run demo.tdc — seed=alpha vs seed=omega (count=5)`
+
+```
+seed=alpha   seed=omega
+1            1
+11           11
+21           21
+31           31
+41           41
+```
+
+That makes counters the reliable spine of a dataset: id columns and row numbers stay
+put even when every random field around them changes.
+
+## Just need the row number?
+
+If all you want is the current row number inside the output template, there's a
+built-in [`${{_count}}`](../reference/builtins.md) — no sequence needed. It starts
+at 1 and rises by one per record.
+
+Reach for an `increment` sequence instead when you need the counter as a **named
+value** — something to reuse in several places, format with a
+[mask](../guides/masks-and-case.md), start somewhere other than 1, or advance by a
+step other than 1.
+
+## See also
+
+- [Sequences](../core-concepts/sequences.md) — the container both counters live in.
+- [Built-ins](../reference/builtins.md) — `_count`, `_first`, `_last`, `_total`.
+- [Determinism](../core-concepts/determinism.md) — why the same seed reproduces the
+  same data (and why counters ignore it).

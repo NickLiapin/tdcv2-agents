@@ -1,0 +1,503 @@
+# Installing packs: `init` and `pack`
+
+Names, cities, states, companies, and other lists are [**data packs**](overview.md).
+They ship **separately from the engine**, so updating the library never overwrites your
+data, and heavy sets don't bloat every install. A sensible default set is bundled (the
+top 1000 first names, for instance); the full and extra sets are fetched on demand with
+`tdcv2 pack`.
+
+The whole flow is two commands, and the order matters:
+
+1. `tdcv2 init` **once per project** — decide **where** downloaded data lives.
+2. `tdcv2 pack add …` — fill that place with the sets you actually need.
+
+`init` comes first because it answers a question `pack` cannot: which folder is
+_yours_. Packs deliberately do not live inside the installed library — if they did,
+every `npm update`, `pip install -U` or dependency bump would wipe a gigabyte of data
+you chose. `init` writes down a folder that belongs to your project, and every
+implementation reads that same file, so a pack downloaded once is found by all of them.
+
+Skip `init` and `pack` has nowhere to put anything, and says so rather than guessing:
+
+`tdcv2 pack list (no config yet)`
+
+```
+tdcv2: no pack store configured — run `tdcv2 init` first
+```
+
+> [!TIP]
+> **The same commands in every language**
+>
+> `init` and `pack` are part of every implementation, not just the Node one. The commands,
+> their output and the config file they write are identical — held there by a shared test
+> fixture all five run against the same expected bytes. What differs is only how you get
+> the command in the first place, and how you spell it:
+>
+> | Your language | Getting the command                                    | Running it                        |
+> | :------------ | :----------------------------------------------------- | :-------------------------------- |
+> | Node.js       | nothing — `npx` fetches it                             | `npx tdcv2 pack add ru`           |
+> | Python        | `pip install tdcv2`                                    | `tdcv2 pack add ru`               |
+> | Rust          | `cargo install tdcv2`                                  | `tdcv2 pack add ru`               |
+> | C#            | `dotnet tool install --global Tdcv2.Cli`               | `tdcv2 pack add ru`               |
+> | Java          | download `tdcv2-0.3.2-cli.jar` from Maven Central      | `java -jar tdcv2-0.3.2-cli.jar pack add ru` |
+>
+> Three of them put a `tdcv2` command on your PATH and read the same from there on. Node
+> needs no install at all — `npx` downloads and runs in one step. Java is the odd one out
+> because Maven has no equivalent of npm's `bin`: adding a library to a project cannot put
+> a command on your PATH, so the command line is a jar you run yourself:
+>
+> ```bash
+> curl -LO https://repo1.maven.org/maven2/io/github/nickliapin/tdcv2/0.3.2/tdcv2-0.3.2-cli.jar
+> java -jar tdcv2-0.3.2-cli.jar pack add ru
+> ```
+>
+> Worth an alias — `alias tdcv2='java -jar /path/to/tdcv2-0.3.2-cli.jar'` — after which every
+> command on this page reads the same as it does everywhere else.
+>
+> A project set up by one of them is ready for the other four — same config file, same
+> store, same registry. Installing `ru` through Python and generating from it in Rust is
+> not a special case; it is the ordinary one.
+
+> The example outputs below are illustrative: exact file counts, sizes, and paths
+> depend on your machine and the core version, but the shape holds.
+
+## `tdcv2 init` — set up a project
+
+`init` writes a config file so you never have to hand-edit JSON. In an interactive
+terminal it runs a short wizard: where to store the config, where to download packs,
+which locale is the default. In a script or in CI, pass flags instead so nothing blocks
+on a prompt.
+
+A **project** init also writes three runnable examples into a new `tdcv2-examples/`
+folder — worth knowing before running it inside an existing repository.
+[`--global`](#--global---g--one-config-for-every-project) writes none.
+
+```bash
+tdcv2 init            # ask, then write
+```
+
+`tdcv2 init`
+
+```
+Wrote project config: /path/to/project/tdcv2.config.json
+  data packs → /path/to/project/tdcv2-packs
+  locale     → en
+  examples   → tdcv2-examples/01-starter.tdc, tdcv2-examples/02-any-format.tdc, tdcv2-examples/03-coherent-records.tdc
+
+Next: run it.
+    tdcv2 tdcv2-examples/01-starter.tdc
+
+The common, en and USA packs are already inside this install, so the
+examples run with nothing downloaded. `tdcv2 pack` adds more locales.
+```
+
+Use it once per project, before your first `tdcv2 pack add`. Each flag below covers a
+case where the wizard would get in your way.
+
+### `--yes` / `-y` — no questions
+
+Skips every prompt and accepts the defaults (project-local config, `./tdcv2-packs`,
+`en`). This is the flag for CI and scripts, where nobody is around to answer the
+wizard's questions.
+
+```bash
+tdcv2 init --yes
+```
+
+`tdcv2 init --yes`
+
+```
+Wrote project config: /path/to/project/tdcv2.config.json
+  data packs → /path/to/project/tdcv2-packs
+  locale     → en
+  examples   → tdcv2-examples/01-starter.tdc, tdcv2-examples/02-any-format.tdc, tdcv2-examples/03-coherent-records.tdc
+
+Next: run it.
+    tdcv2 tdcv2-examples/01-starter.tdc
+
+The common, en and USA packs are already inside this install, so the
+examples run with nothing downloaded. `tdcv2 pack` adds more locales.
+```
+
+### `--global` / `-g` — one config for every project
+
+Writes the config into your user config directory instead of the current folder:
+
+| Platform                    | Where it goes                                          |
+| :-------------------------- | :----------------------------------------------------- |
+| Windows                     | `%APPDATA%\tdcv2\config.json` (`~/AppData/Roaming/…` if `%APPDATA%` is unset) |
+| POSIX, `XDG_CONFIG_HOME` set | `$XDG_CONFIG_HOME/tdcv2/config.json`                   |
+| POSIX, default              | `~/.config/tdcv2/config.json`                          |
+ Use it when you want one shared data store that every project on the machine
+reads from, rather than a separate `tdcv2-packs` folder in each repo.
+
+```bash
+tdcv2 init --global
+```
+
+`tdcv2 init --global`
+
+```
+Wrote global config: /Users/you/.config/tdcv2/config.json
+  data packs → /Users/you/.config/tdcv2/packs
+  locale     → en
+```
+
+### `--force` / `-f` — overwrite an existing config
+
+By default, `init` refuses to clobber a config that already exists. Pass `--force` when
+you deliberately want to reset it — to change the pack folder, say, or to start clean.
+
+`tdcv2 init (config already exists)`
+
+```
+Config already exists: /path/to/project/tdcv2.config.json
+Nothing written. Re-run with --force to overwrite.
+```
+
+### `--locale <loc>` — pick the default locale
+
+Sets the `locale` value in the config, so you don't have to name a locale on every run.
+`en` is the built-in default; pass another code to make that one the project default.
+
+```bash
+tdcv2 init --yes --locale en
+```
+
+### `--data-path <dir>` — pick the pack folder
+
+Sets where `pack add` downloads to (the `packStore`, below). Point it at a shared drive
+or at a path outside the repo when you don't want packs living next to your source.
+
+```bash
+tdcv2 init --yes --data-path ../shared-tdc-packs
+```
+
+## The `tdcv2.config.json` file
+
+`init` writes a small file like this:
+
+```json
+{
+  "packStore": "./tdcv2-packs",
+  "locale": "en"
+}
+```
+
+- **`packStore`** — where `pack` downloads to. Every set lands in that one folder, and
+  the first `pack add` registers the folder itself in `dataPaths`. See
+  [inside the pack store](#inside-the-pack-store) for what it looks like.
+- **`locale`** — the default locale (set by the `--locale` flag, above).
+- **`dataPaths`** — the folders the engine actually scans for packs. `pack add` puts the
+  store in there for you, and you can add your own folders here to point the engine at
+  [packs you wrote yourself](writing-your-own.md).
+
+A run finds its config by walking **up from the `.tdc` file's own folder**, the same way
+tools locate `tsconfig.json` — so `tdcv2 sub/users.tdc` picks up `sub/`'s project config,
+not the shell's. `tdcv2 pack` and `tdcv2 init` have no `.tdc` file to start from, so those
+two walk up from the current folder instead. When several sources define the same setting, priority runs low to high:
+
+```
+built-in packs  <  global config (~/.config/tdcv2)  <  project tdcv2.config.json  <  --data-path flag
+```
+
+Paths inside the file are resolved **relative to the file itself**, not to your current
+working directory, so a config can travel with its project.
+
+## `tdcv2 pack` — download and remove sets
+
+Run with no arguments in a terminal, `pack` opens a **picker** rather than printing the
+catalogue at you. 294 bundles do not fit on a screen, so they are browsed the way they
+are shaped:
+
+- **Everything**, or **choose what I need** — the first question, before anything else.
+- Languages in one list; countries reached **through a continent**, off a map.
+- `/` searches from anywhere: type `braz` and Brazil is there, labelled with its continent.
+- <kbd>space</kbd> picks, and on a continent it takes **the whole continent** at once.
+- <kbd>backspace</kbd>, <kbd>esc</kbd> or <kbd>←</kbd> steps back out of any screen.
+- **Review** lists the basket with its total size; <kbd>space</kbd> drops anything you
+  changed your mind about, <kbd>enter</kbd> applies. Nothing downloads before that.
+
+The map shows what you have taken so far: the continent under the cursor lights up, and
+each picked country burns a spark where it actually is. Press <kbd>m</kbd> to switch
+between bare coastlines and filled land.
+
+Every implementation opens the same picker, and the terminal decides how it is drawn:
+half-blocks and colour where they exist, ASCII and a plain line drawing where they do not
+(the old Windows console, a pipe, `NO_COLOR`). Java's and Rust's pickers need `stty` and
+so are Unix-only; on Windows they print the list instead, which Node, Python and C# do not
+have to because their runtimes read a keystroke on their own.
+
+In a script — or anywhere without a terminal — drive it with subcommands:
+
+```bash
+tdcv2 pack list              # what's in the registry
+tdcv2 pack add en usa        # download and wire up
+tdcv2 pack remove usa        # remove
+```
+
+Every subcommand also takes **`--registry <base-url>`**, which points `pack` at a
+catalog other than the public one. The default is the project's own registry:
+
+```bash
+tdcv2 pack list --registry https://packs.example.internal/tdc
+tdcv2 pack add en --registry=https://packs.example.internal/tdc
+```
+
+Use it for a company mirror or an air-gapped copy. The URL is a base — `pack` appends
+the index and archive paths itself — and a trailing slash is ignored. The `sha256`
+check still runs, so a mirror that serves altered bytes fails to install, the same way
+the public registry would.
+
+### `pack list` — see the catalog
+
+Prints the registry, marks what you already have installed, and shows the download size
+of each set.
+
+`tdcv2 pack list`
+
+```
+Available data packs:
+
+common ✓ installed Common (locale-agnostic) (46.5 KB)
+Generators bound to neither a language nor a country: uuid,
+hashes, ISBN/ISSN, GTIN/UPC/EAN, card PANs, MRZ, IPv4/IPv6/MAC,
+semver, and more.
+
+ar Arabic (language) (88.8 KB)
+Content bound to the Arabic language rather than to any one
+country: address, airline, animal, book, clothing, color,
+commerce, company, date, education, event, finance, and 23 more.
+
+…
+
+yemen Yemen (country) (2.9 KB)
+Data specific to Yemen: docs, education, finance, geo, holiday,
+phone, sport.
+
+Install with: tdcv2 pack add <id>
+```
+
+Descriptions are folded to your window, so the list stays a list however narrow the
+terminal is. Piped or redirected there is no window to measure, and all five
+implementations assume 80 columns — so a saved listing is the same file whichever one
+wrote it.
+
+The catalogue holds **294 sets today**: `common`, 95 languages, and 198 countries. A
+language or country that is not listed is not finished — an entry is a promise that every
+address under it resolves, so a folder holding one file does not get one.
+
+Use it to check what an address needs before you generate, and to confirm that a set
+landed after `pack add`.
+
+### `pack add <id…>` — download and register
+
+`pack add` downloads the set's zip, verifies its `sha256` (a tampered or corrupted
+download won't install), unpacks it into the pack store, and **registers** that store in
+your config, so the data is live at its dotted addresses right away — no extra wiring
+step.
+
+```bash
+tdcv2 pack add en
+```
+
+`tdcv2 pack add en`
+
+```
+Installed en: 324 files → /path/to/project/tdcv2-packs/en
+  registered ./tdcv2-packs in /path/to/project/tdcv2.config.json
+```
+
+The store is registered once, on the first install. Later sets land in the same folder
+and say `already registered` instead.
+
+You can install several sets in one call — `tdcv2 pack add common en usa` — and that's
+the normal way to assemble a locale (see [axis-pure packs](#packs-are-axis-pure) below).
+
+### `pack remove <id…>` — delete and unregister
+
+`pack remove` deletes exactly the paths that set brought, and nothing beside them. A
+folder left empty by the deletion goes too.
+
+```bash
+tdcv2 pack remove usa
+```
+
+`tdcv2 pack remove usa`
+
+```
+Removed usa (/path/to/project/tdcv2-packs/countries/usa)
+```
+
+The store stays in `dataPaths` while it still holds something, because that one entry
+serves every set in it. Remove the last set and the entry goes as well:
+
+`tdcv2 pack remove common en`
+
+```
+Removed common (/path/to/project/tdcv2-packs/common)
+Removed en (/path/to/project/tdcv2-packs/en)
+  store now empty — unregistered /path/to/project/tdcv2-packs from /path/to/project/tdcv2.config.json
+```
+
+Removing a set is safe: the [built-in default](#built-in-default-vs-downloaded) at those
+addresses comes back on its own.
+
+### Behind a proxy
+
+`pack list` and `pack add` reach the registry through the proxy the environment names,
+as npm and curl do — which matters on a corporate network, a CI runner or an agent's
+sandbox, where a proxy is the only way out:
+
+- an `https` address uses the first of `https_proxy`, `HTTPS_PROXY`, `all_proxy`,
+  `ALL_PROXY` that is set; an `http` one `http_proxy`, `HTTP_PROXY`, `all_proxy`,
+  `ALL_PROXY`;
+- `NO_PROXY` (or `no_proxy`) lists the hosts that go direct, comma-separated: an entry
+  matches the host itself and everything under it (`example.com` and `.example.com`
+  both cover `raw.example.com`), and `*` sends everything direct;
+- a value written without a scheme is an `http://` proxy; a user and password in it
+  (`http://user:pass@proxy:8080`) are sent to the proxy and never printed.
+
+When the registry cannot be reached, the message names the address, the proxy it went
+through and the variable that chose it, and what the network answered:
+
+```text
+tdcv2: cannot reach https://raw.githubusercontent.com/…/index.json through the proxy http://127.0.0.1:9 from HTTPS_PROXY (connect ECONNREFUSED 127.0.0.1:9)
+```
+
+## Inside the pack store
+
+Every set unpacks into the **one** folder `packStore` names. A language goes under its
+code, a country under `countries/`, and `common` under its own name:
+
+```text
+tdcv2-packs/
+├── .tdcv2-installed.json
+├── common/…
+├── en/…
+└── countries/usa/…
+```
+
+That folder is a single scan root, so the config holds one `dataPaths` entry however many
+sets you install:
+
+```json
+{
+  "packStore": "./tdcv2-packs",
+  "locale": "en",
+  "dataPaths": ["./tdcv2-packs"]
+}
+```
+
+`.tdcv2-installed.json` is the store's own bookkeeping, and not a file you edit. For each
+set it records the paths that set owns, how many files it brought, the `sha256` the
+download was checked against, and the version if the registry publishes one. That is what
+`pack remove` reads to find what to delete, and what `pack list` reads for the
+`✓ installed` mark.
+
+### A store from an earlier version
+
+Earlier versions unpacked each set into `<store>/<id>/packs/…` and gave it a `dataPaths`
+entry of its own. That put three near-identical levels on disk, and it put one entry per
+set in the config — a hundred country packs meant a hundred entries.
+
+The first `tdcv2 pack` command of any kind moves such a store to the layout above, in
+place. Nothing is downloaded again. The notice goes to stderr:
+
+`tdcv2 pack list (store in the old layout)`
+
+```
+tdcv2: pack store "/path/to/project/tdcv2-packs" used the old per-bundle layout; moved it to the flat one.
+  en: en/packs → en (324 files)
+  usa: usa/packs → countries/usa (22 files)
+  dropped 2 per-bundle dataPaths entries
+  registered ./tdcv2-packs instead
+```
+
+Every move is planned before anything moves. If a path in the new layout is already
+taken, the whole migration is refused and the collisions are named, rather than leaving
+the store half in one shape and half in the other.
+
+## Packs are axis-pure
+
+Packs are organized along a **single axis** — a language, a country, or the
+locale-agnostic `common` set — and they **compose**. US English data isn't one
+monolithic pack; it's three layers stacked on top of each other:
+
+```bash
+tdcv2 pack add common en usa
+```
+
+`tdcv2 pack add common en usa`
+
+```
+Installed common: 145 files → /path/to/project/tdcv2-packs/common
+  registered ./tdcv2-packs in /path/to/project/tdcv2.config.json
+Installed en: 324 files → /path/to/project/tdcv2-packs/en
+  already registered in /path/to/project/tdcv2.config.json
+Installed usa: 22 files → /path/to/project/tdcv2-packs/countries/usa
+  already registered in /path/to/project/tdcv2.config.json
+```
+
+Which leaves three folders in the store, under the one `dataPaths` entry that covers all
+of them — see [inside the pack store](#inside-the-pack-store).
+
+This isn't a quirk of the file format. It reflects the fact that language and country
+really are independent. English is shared by the US, the UK, and Canada, so it downloads
+once as `en`, while country-specific data (US states, US area codes) lives in `usa`. Mix
+and match to build whatever locale you need.
+
+## Built-in default vs. downloaded
+
+The built-in default set (shipped inside the package) is the **lowest layer**, and it's
+always present. A downloaded set is laid **on top** and **shadows** the same addresses
+without deleting anything underneath. Two things follow from that:
+
+- install a full set → it **overrides** the default at those addresses;
+- `pack remove` → the default **comes back** on its own. No hole in your data.
+
+So installing and removing are both safe: the base set is never really deleted, only
+shadowed for as long as a richer set sits above it.
+
+## Where the base layer comes from
+
+That base layer is found by asking three questions in order — the same three, in the same
+order, in all five implementations:
+
+| Order | Where                             | When it answers                                       |
+| :---- | :-------------------------------- | :---------------------------------------------------- |
+| 1     | `TDCV2_PACKS`, if it names a folder | You set it, so it wins over everything else          |
+| 2     | A TDC source checkout             | Only when TDC itself was built from source            |
+| 3     | The set inside the installed package | Normally — this is what an installed package uses   |
+
+Step 2 exists for people working on TDC itself: inside a checkout all five implementations
+read the repository's own `data/packs`, so they see one copy of the data rather than five
+that could drift apart. It cannot fire for an installed package, and it deliberately will
+not settle for any folder named `data/packs` — the folder has to be recognisably the TDC
+repository, so a folder of yours that happens to share the name is never picked up by
+mistake.
+
+`TDCV2_PACKS` is the escape hatch when you want to point every implementation at one folder
+without editing any config:
+
+```bash
+TDCV2_PACKS=/srv/shared-packs tdcv2 users.tdc
+```
+
+Whatever `tdcv2.config.json` and `--data-path` name is layered **on top** of the answer,
+never instead of it.
+
+Two more variables shape the `pack` command rather than the search:
+
+- **`TDCV2_NO_PICKER`** — set to anything, and `tdcv2 pack` with no subcommand prints the
+  list instead of opening the full-screen picker. This is the way to get the printed list
+  on a terminal; a script or a pipe gets it anyway.
+- **`TDCV2_ASCII`** — set to anything, and the picker draws with ASCII glyphs and one map
+  row per line. It is the manual override for when the Unicode auto-detection guesses
+  wrong; `NO_COLOR` is separate and turns off colour only.
+
+## See also
+
+- **[Data packs overview](overview.md)** — what a pack is and how dotted addresses work.
+- **[Writing your own](writing-your-own.md)** — the pack file format and address rules.
+- **[CLI reference](../reference/cli.md)** — the full command-line reference.

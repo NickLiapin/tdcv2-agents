@@ -1,0 +1,408 @@
+# The `http` generator
+
+**Use it when** the value has to come from logic TDC doesn't have — a real check-digit
+algorithm you already wrote, a lookup in your own database, any calculation that would
+be painful to express in the config. You stand up a small service, and TDC calls it: it
+becomes the **client** of your service, not the host of your code. That is the extension
+point — anything you can put behind an HTTP endpoint becomes part of your data.
+
+## Two modes: it generates, or it processes
+
+One attribute decides which, and the two are genuinely different jobs:
+
+|             | `in`    | what your service receives | what it does                                       |
+| :---------- | :------ | :------------------------- | :------------------------------------------------- |
+| **Source**  | absent  | nothing but a count        | invents the values itself — it acts as a generator |
+| **Handler** | present | your values, one per line  | transforms what you sent and hands it back         |
+
+Both at once, against the same service — the first column is handed over and comes back
+changed, the second is conjured from nothing:
+
+```xml
+<sequence name="City">
+  <gen type="text" value="Paris,Berlin,Tokyo" order="sequential"/>
+</sequence>
+
+<sequence name="Handled">
+  <gen type="http" src="http://127.0.0.1:5599/gen" in="City"/>   <!-- handler -->
+</sequence>
+
+<sequence name="Made">
+  <gen type="http" src="http://127.0.0.1:5599/gen"/>             <!-- source -->
+</sequence>
+```
+
+`./run modes.tdc`
+
+```
+Paris  ->  [Paris ok]    |  Made: SRC-000
+Berlin ->  [Berlin ok]   |  Made: SRC-001
+Tokyo  ->  [Tokyo ok]    |  Made: SRC-002
+```
+
+The handler mode is the more useful of the two, and the one that is easy to miss. It lets
+a service you already have **finish** a value TDC started rather than replace the
+generator outright: validate it, add a check digit, look it up, translate it.
+
+Your service tells the two apart by the request body: **an empty body means source
+mode**, and the `X-TDC-Count` header says how many values to invent.
+
+> [!TIP]
+> **Writing the service itself**
+>
+> A complete, working service in **Node, Python, and Java** — covering both modes, plus
+> how to make it reproducible from the seed — gets a page of its own:
+> **[Writing a service generator](../guides/writing-a-service.md)**.
+
+*The column of inputs is sent in one request; the reply comes back one value per row, in the same order. Here the service upper-cases each value (a → A).*
+
+- **A** — the input column — the values your sequence produced
+- **B** — your service: TDC only talks to it, never runs it
+- **C** — the reply — one value per row, in the order sent
+
+## Attributes
+
+| Attribute  | Meaning                                                                                                                                                                               |
+| :--------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `src`      | the service URL — `http://127.0.0.1:5566/gen` (local, fast) or a public host. `https` works too                                                                                       |
+| `in`       | the sequence whose value is sent on each row — this is what turns the service into a **handler**. Omit it and the service is a **source**: it receives nothing and invents each value |
+| `on_error` | `fail` (default) — stop with a clear message; or `empty` — blank the cell and continue                                                                                                |
+| `timeout`  | seconds to wait for one answer before giving up. Default 30                                                                                                                           |
+| `secret`   | the key each request is **signed** with, so your service can tell TDC from anyone else who can reach the port. Three spellings — see [Proving the request came from TDC](#proving-the-request-came-from-tdc) |
+
+`in` names an **earlier** sequence — the value it produced on each row is what gets sent.
+
+## The contract your service implements
+
+The engine speaks one small protocol and expects nothing else back:
+
+- **`POST`** to `src`, with a header **`X-TDC-Count: N`** — how many values are wanted.
+- **`Content-Type: text/plain`**, exactly that, with no charset parameter. All five
+  implementations send the same string, so a service may match it literally.
+- The **body** is the `N` input values, **one per line**, in row order. With no `in`,
+  the body is empty and `N` comes from the header.
+- **`X-TDC-Input: N`** travels whenever `in` is present, and says how many input lines the
+  body holds. It is what tells a handler from a source when the body cannot: `in` naming a
+  column of one empty value sends an empty body, which is byte for byte what a source sends.
+  A service that ignores the header reads the body exactly as it always did.
+- **`X-TDC-Seed`** is eight hex digits derived from the run's seed and the sequence name —
+  the same value every time, and different for every sequence, so a service that generates
+  from it can be reproducible on its own.
+- **`X-TDC-Timestamp`** and **`X-TDC-Signature`** travel only when the config carries
+  [`secret`](#proving-the-request-came-from-tdc).
+- The **response** must be exactly **`N` lines**, in the same order — line _i_ answers
+  input line _i_. Plain text.
+
+Anything structured is your service's job. If it works with JSON internally, it
+returns the one field you want, as text — inside TDC every value is a string anyway.
+
+**One request per column, not per row.** The engine sends the whole batch at once, so a
+thousand rows is one request. A service written "one line in, one line out" still works
+— it just loops over the lines of the one request it receives.
+
+*Why a thousand rows is one request. The per-row shape (left) would be a thousand round trips; TDC sends the whole column in one (right).*
+
+- **A** — one request per row — what TDC does NOT do; it would be a call per value
+- **B** — one request for the whole column — the whole batch, one round trip
+
+This is what keeps it fast: the cost is one round trip plus your service's own work,
+not a network round trip per value. It's also why `http` runs on the in-memory engine
+([one of six shapes that
+do](../guides/large-outputs.md#which-engine-runs-your-config)), and why it's best
+pointed at a service on your own machine, or at a run you have sized on purpose — not a
+billion rows against a distant endpoint.
+
+## A whole service, in five languages
+
+Each of these is complete and answers **both** modes: it wraps whatever you send, and
+invents values when the body is empty. Pick your language — they behave identically.
+
+#### Node.js
+
+```js
+import { createServer } from 'node:http';
+
+createServer((req, res) => {
+  const chunks = [];
+  req.on('data', (c) => chunks.push(c));
+  req.on('end', () => {
+    const count = Number(req.headers['x-tdc-count'] ?? '0');
+    const sent = Buffer.concat(chunks).toString('utf8');
+
+    const out =
+      sent === ''
+        ? Array.from({ length: count }, (_, i) => 'SRC-' + String(i).padStart(3, '0')) // source
+        : sent.split('\n').map((line) => '[' + line + ' ok]'); // handler
+
+    const body = out.join('\n');
+    res.writeHead(200, { 'Content-Type': 'text/plain', 'Content-Length': Buffer.byteLength(body) });
+    res.end(body);
+  });
+}).listen(5801, '127.0.0.1');
+```
+
+#### Python
+
+```python
+from http.server import BaseHTTPRequestHandler, HTTPServer
+
+class H(BaseHTTPRequestHandler):
+    def do_POST(self):
+        n = int(self.headers.get("Content-Length", 0))
+        sent = self.rfile.read(n).decode() if n else ""
+        count = int(self.headers.get("X-TDC-Count", "0"))
+
+        if sent == "":
+            out = [f"SRC-{i:03d}" for i in range(count)]          # source
+        else:
+            out = [f"[{line} ok]" for line in sent.split("\n")]   # handler
+
+        body = "\n".join(out).encode()
+        self.send_response(200)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+HTTPServer(("127.0.0.1", 5802), H).serve_forever()
+```
+
+#### Java
+
+```java
+import com.sun.net.httpserver.HttpServer;
+import java.io.OutputStream;
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
+
+public class S3 {
+    public static void main(String[] args) throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 5803), 0);
+        server.createContext("/", exchange -> {
+            String sent = new String(exchange.getRequestBody().readAllBytes(),
+                                     StandardCharsets.UTF_8);
+            String raw = exchange.getRequestHeaders().getFirst("X-TDC-Count");
+            int count = Integer.parseInt(raw == null ? "0" : raw);
+
+            List<String> out = new ArrayList<>();
+            if (sent.isEmpty()) {
+                for (int i = 0; i < count; i++) out.add(String.format("SRC-%03d", i));  // source
+            } else {
+                for (String line : sent.split("\n", -1)) out.add("[" + line + " ok]");  // handler
+            }
+
+            byte[] body = String.join("\n", out).getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, body.length);
+            try (OutputStream os = exchange.getResponseBody()) { os.write(body); }
+        });
+        server.start();
+    }
+}
+```
+
+#### C#
+
+```csharp
+using System.Net;
+using System.Text;
+
+var server = new HttpListener();
+server.Prefixes.Add("http://127.0.0.1:5804/");
+server.Start();
+
+while (true)
+{
+    HttpListenerContext ctx = server.GetContext();
+    using var reader = new StreamReader(ctx.Request.InputStream, Encoding.UTF8);
+    string sent = reader.ReadToEnd();
+    int count = int.Parse(ctx.Request.Headers["X-TDC-Count"] ?? "0");
+
+    IEnumerable<string> lines = sent.Length == 0
+        ? Enumerable.Range(0, count).Select(i => $"SRC-{i:D3}")     // source
+        : sent.Split('\n').Select(line => $"[{line} ok]");          // handler
+
+    byte[] body = Encoding.UTF8.GetBytes(string.Join("\n", lines));
+    ctx.Response.ContentLength64 = body.Length;
+    ctx.Response.OutputStream.Write(body);
+    ctx.Response.Close();
+}
+```
+
+#### Rust
+
+```rust
+use std::io::{BufRead, BufReader, Read, Write};
+use std::net::TcpListener;
+
+fn main() -> std::io::Result<()> {
+    let listener = TcpListener::bind("127.0.0.1:5805")?;
+    for stream in listener.incoming() {
+        let mut stream = stream?;
+        let mut reader = BufReader::new(stream.try_clone()?);
+
+        let (mut length, mut count) = (0usize, 0usize);
+        loop {
+            let mut line = String::new();
+            if reader.read_line(&mut line)? == 0 || line == "\r\n" {
+                break;
+            }
+            let lower = line.to_ascii_lowercase();
+            if let Some(v) = lower.strip_prefix("content-length:") {
+                length = v.trim().parse().unwrap_or(0);
+            } else if let Some(v) = lower.strip_prefix("x-tdc-count:") {
+                count = v.trim().parse().unwrap_or(0);
+            }
+        }
+
+        let mut sent = vec![0u8; length];
+        reader.read_exact(&mut sent)?;
+        let sent = String::from_utf8_lossy(&sent);
+
+        let out: Vec<String> = if sent.is_empty() {
+            (0..count).map(|i| format!("SRC-{i:03}")).collect()             // source
+        } else {
+            sent.split('\n').map(|line| format!("[{line} ok]")).collect()   // handler
+        };
+
+        let body = out.join("\n");
+        write!(
+            stream,
+            "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {}\r\n\r\n{body}",
+            body.len()
+        )?;
+    }
+    Ok(())
+}
+```
+
+No crates: the standard library has a TCP listener, and an HTTP request is a few
+lines of headers followed by a body.
+
+Start one, point `src` at its port, and run the config from
+[Two modes](#two-modes-it-generates-or-it-processes) — all five produce the same output.
+
+> [!CAUTION]
+> **Read this before writing your own — it is not optional**
+>
+> The services above are the shortest thing that works. They are **not reproducible**: run
+> the config twice and the invented values are whatever the service felt like.
+>
+> **[→ Writing a service generator](../guides/writing-a-service.md)** is the page that
+> matters. It covers, with working code in all five languages:
+>
+> - **how to make a run reproducible** using the `X-TDC-Seed` header TDC sends you — the
+>   one thing that gets this generator's guarantee back;
+> - **why `value(seed, i)` and never `next()`** — a service cannot promise call order, and
+>   an iterator quietly breaks under retries and concurrency;
+> - **the 32-bit trap** that makes a naive Python port silently disagree with Node and Java;
+> - the pre-flight list: exact line counts, order, newlines, concurrency, batching.
+>
+> Skip it and your data will look fine but won't be reproducible. That's the expensive
+> kind of wrong.
+
+## When it goes wrong
+
+The service is outside TDC's control, so failures are handled, not hidden:
+
+- **`on_error="fail"`** (the default) stops the run with a message naming the sequence
+  and the service — `http service for sequence "Checked" at … returned 500`. A blank
+  column in a finished file is a worse surprise than a clear stop.
+- **`on_error="empty"`** blanks the affected column and finishes, for when a best-effort
+  output is what you want. Checking for the gaps is then on you.
+- **`429` (rate limited) always stops**, even under `empty`. "Slow down" and "stream a
+  whole column" cannot be reconciled, and continuing would quietly truncate the data.
+- A service that **never answers** is cut off by `timeout` rather than hanging the run.
+- A service that **floods** — answering with far more than one value per line — is cut
+  off at 64 MB with an error instead of being read into memory to the end.
+- A **`secret` that cannot be read** — an unset variable, a missing file — stops the run
+  before any request goes out, naming the sequence. Sending the batch unsigned instead
+  would be the one outcome the attribute exists to prevent.
+
+## Proving the request came from TDC
+
+A service that answers `http` requests is doing real work — hashing a password, minting an
+account number, calling a model that costs money. If it is reachable by anything other than
+your own machine, it should be able to tell TDC's requests from anyone else's.
+
+`secret=` does that **without ever putting the key on the wire**. Each request carries a
+timestamp and a signature computed from the secret; the service recomputes the same thing
+with its own copy and compares.
+
+```xml
+<sequence name="Hashed">
+  <gen type="http" src="https://svc.example.com/hash" in="Password"
+       secret="env:TDC_HTTP_SECRET"/>
+</sequence>
+```
+
+Two extra headers travel with the request:
+
+```
+X-TDC-Timestamp: 1786000000
+X-TDC-Signature: hex(HMAC-SHA256(secret, timestamp \n seed \n count \n body))
+```
+
+Everything that decides the answer is inside the signature — change the body, the count,
+the seed or the minute and it no longer matches. Verifying it is a few lines:
+
+```js
+const mine = crypto
+  .createHmac('sha256', process.env.TDC_HTTP_SECRET)
+  .update(`${ts}\n${seed}\n${count}\n${body}`)
+  .digest('hex');
+if (mine !== req.headers['x-tdc-signature']) return res.status(401).end();
+```
+
+All five implementations produce the **same** signature for the same request, so one
+service accepts requests from any of them.
+
+### Where the key lives
+
+| Spelling                            | Where it reads from                                              |
+| :---------------------------------- | :--------------------------------------------------------------- |
+| `secret="env:TDC_HTTP_SECRET"`      | an environment variable — **the recommended one**                |
+| `secret="file:~/.tdc/service.key"`  | a file, trimmed; relative paths resolve beside the config         |
+| `secret="k7Fm2p…"`                  | the value itself — works, and warns ([`TDC284`](../reference/errors.md)) |
+
+The literal warns rather than fails because a service on `127.0.0.1` for an afternoon is a
+real use. But a config goes into version control and the key goes with it, which is why the
+other two spellings exist. `secret=""` is an error: signing with nothing produces a
+signature anyone could forge.
+
+### What signing does and does not do
+
+- It proves the sender **holds the secret**, and that the request was not altered on the way.
+- The timestamp is what makes a captured request useless tomorrow — **how strict that
+  window is, is your service's decision.** TDC sends its real clock, not the run's
+  `--now`, so a config pinned to a past date still works.
+- The secret has **no expiry**. A test that runs once a quarter signs correctly with a key
+  set months ago, which is why this is a signature and not an expiring token.
+- It does **not hide the contents.** Over plain `http://` the body and reply are visible to
+  anyone listening. If real secrets travel through the service, use `https://` as well —
+  the two solve different problems.
+- The signature changes every run, because the timestamp does. That has no effect on the
+  data, which was never reproducible for `http` anyway.
+
+## What it does not promise
+
+This is the one generator that trades away guarantees the rest of TDC keeps. State them
+to yourself before reaching for it:
+
+- **Not reproducible.** The service decides the values, so `seed` guarantees nothing and
+  **re-running gives different data**. A config using `http` is never treated as
+  reproducible.
+- **Order follows the service**, not the seed.
+- **Local or modest volumes.** Over the internet, a large run is a large number of
+  outbound calls — this is for a service on your own machine, or a run you have sized on
+  purpose. Not for a billion rows against a public endpoint.
+- **From the library, only the async path.** A network call cannot come out of a
+  synchronous function, so `toString()` and `writeFile()` **throw** on an `http` config.
+  Use [`toStringAsync()` / `writeFileAsync()`](../bindings/typescript.md#terminal-methods)
+  — the CLI already does. Nothing to do if you run it from the command line.
+
+## See also
+
+- [Writing a service generator](../guides/writing-a-service.md) — working services in Node, Python, and Java
+- [Generators overview](../generators/overview.md)
+- [Error codes](../reference/errors.md) — `TDC065`–`TDC069`, `TDC284`, and the run-time failures

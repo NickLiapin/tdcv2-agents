@@ -1,0 +1,25 @@
+{
+  "name": "tdcv2",
+  "displayName": "TDCv2 — test data",
+  "version": "0.1.0",
+  "description": "Test data from a small .tdc config — CSV, JSON, SQL or any text — generated on your machine by the TDCv2 engine; the same config gives the same file every time. A skill that teaches the agent the language, and an MCP server to check, generate and find data packs.",
+  "author": {
+    "name": "Nikolai Liapin",
+    "url": "https://github.com/NickLiapin"
+  },
+  "homepage": "https://nickliapin.github.io/tdcv2/",
+  "repository": "https://github.com/NickLiapin/tdcv2-agents",
+  "license": "MIT",
+  "keywords": [
+    "test-data",
+    "fixtures",
+    "seed-data",
+    "synthetic-data",
+    "mock-data",
+    "csv",
+    "json",
+    "sql",
+    "deterministic",
+    "tdcv2"
+  ]
+}

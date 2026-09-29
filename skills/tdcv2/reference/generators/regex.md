@@ -1,0 +1,668 @@
+# The `regex` generator
+
+**Use it when** a value has a **strict shape** — a phone number, a SKU, a license
+plate, a token, an order code. There are too many possibilities for a list, and
+too much internal structure for [`number`](number.md): letters, digits, and
+separators in specific places.
+
+A regular expression describes that shape. The generator reads it left to right and
+fills each slot with random characters from the matching set, printing literals
+(dashes, parentheses, `@`) as-is.
+
+> [!NOTE]
+> **A finite, portable subset**
+>
+> This is **not** the full JavaScript `RegExp`. It's a finite subset that can be
+> implemented identically in every language. The one hard rule: the
+> result must have a **bounded length**, so `*`, `+`, and `{n,}` are not allowed —
+> you always write an explicit upper bound.
+
+## A worked example
+
+A US-format phone number:
+
+```xml
+<gen type="regex" value="\+1 \([0-9]{3}\) [0-9]{3}-[0-9]{4}"/>
+```
+
+`./run phone.tdc`
+
+```
++1 (299) 994-1396
++1 (929) 818-7014
++1 (462) 860-3781
++1 (905) 009-2500
++1 (876) 318-9991
+```
+
+The parentheses, spaces, and dashes are literals (the backslash before `(` and `)`
+makes them ordinary characters). The `\+1` is a literal `+1`, and the `[0-9]{…}`
+groups are slots that get random digits. The shape is always the same; only the
+values differ.
+
+Every example on this page is rendered with `seed="demo"`. Two things decide the draw,
+though, and the second one surprises people: the seed **and the sequence's name**. Each
+column draws from its own stream, derived from both, so that adding a column never shifts
+the ones beside it — which means the same pattern under `<sequence name="Phone">` and
+under `<sequence name="V">` gives different strings, on the same seed. Copy a pattern out
+of this page into a differently named sequence and expect different values.
+
+Output values are illustrative; the exact strings can differ by core version, but the
+shape never does.
+
+Other everyday shapes:
+
+| Task              | Pattern                             | Example                            |
+| :---------------- | :---------------------------------- | :--------------------------------- |
+| SKU               | `[A-Z]{3}-[0-9]{4}`                 | `SAH-0136`                         |
+| Plate (US)        | `[0-9][A-Z]{3}[0-9]{3}`             | `7KLM042`                          |
+| 32-char hex token | `[A-F0-9]{32}`                      | `5AE5ABF3F7040BEB966D65A23EB7C1EC` |
+| Test email        | `user_[a-z0-9]{8}@test\.(com\|org)` | `user_zak0bdnw@test.com`           |
+
+That same SKU, rendered in full:
+
+```xml
+<gen type="regex" value="[A-Z]{3}-[0-9]{4}"/>
+```
+
+`./run sku.tdc`
+
+```
+FZY-9944
+YHZ-8189
+LRG-8608
+YAO-0097
+WTR-3189
+```
+
+## When plain `regex` is the right tool
+
+Use `type="regex"` to describe the **shape of one string** when you don't need
+exact proportions inside it. An alternation like `(com|org)` is chosen **randomly
+and independently** on each row — fine when the exact split of variants doesn't
+matter.
+
+Good fits for plain `regex`:
+
+- a technical ID: `[A-Z]{2}[0-9]{6}`
+- a safe test email: `user_[a-z0-9]{8}@test\.(com|org)`
+- a code with a repeating block: `([0-9]{3})-[A-Z]{2}-\1`
+- a fixed-length token: `[A-F0-9]{32}`
+
+If you need **exact shares** of variants inside the string (say, exactly 70% with
+one prefix), plain `regex` won't do it — reach for
+[`advanced_regex`](advanced-regex.md):
+
+```xml
+<gen type="advanced_regex" value="(?%{70:US;20:CA;10:UK})-[0-9]{6}"/>
+```
+
+## Syntax at a glance
+
+| Construct           | Example                      | Generates                                 |
+| :------------------ | :--------------------------- | :---------------------------------------- |
+| Literals            | `ABC-42`                     | Exactly those characters                  |
+| Escaped characters  | `\.\+\(\)\\`                 | Dot, plus, parens, backslash              |
+| Character class     | `[ABC]`, `[a-z]`, `[A-Z0-9]` | One character from the set                |
+| Unicode BMP range   | `[а-я]`, `[א-ת]`, `[ぁ-ゖ]`  | One character from the range              |
+| Named alphabet      | `\a{kana.hiragana}`          | One character from a built-in alphabet    |
+| Negated class       | `[^0-9]`                     | A printable ASCII character, except those |
+| Shorthand class     | `\d`, `\w`, `\s`             | Digit, word char, space/tab               |
+| Inverse shorthand   | `\D`, `\W`, `\S`             | The inverse of the above                  |
+| Any character       | `.`                          | One printable ASCII character             |
+| Alternation         | `cat\|dog`                   | `cat` or `dog`                            |
+| Group               | `(cat\|dog)`                 | Grouping and capture                      |
+| Non-capturing group | `(?:cat\|dog)`               | Grouping without capture                  |
+| Backreference       | `([0-9]{3})-\1`              | Repeats an already-generated group        |
+| Named group         | `(?<code>[A-Z]{2})`          | Grouping and capture, under a name        |
+| Named backreference | `\k<code>`                   | Repeats a group by name                   |
+| Conditional         | `(?(code)-\|/)`              | One branch or the other, by the group     |
+| Optional            | `AB?C`                       | `AC` or `ABC`                             |
+| Exact repeat        | `[A-Z]{4}`                   | Exactly 4                                 |
+| Range repeat        | `[A-Z]{2,5}`                 | 2 to 5                                    |
+| Anchors             | `^ABC$`                      | Zero-width; the result is `ABC`           |
+
+The rest of this page is the same list, but with **real output** under each one.
+
+## Character classes
+
+`[…]` takes one random character from the set. A range `a-z` is shorthand for "every
+letter from `a` to `z`".
+
+```xml
+<gen type="regex" value="[ABC]{6}"/>     <!-- only A, B, C -->
+<gen type="regex" value="[a-z]{6}"/>     <!-- lowercase latin -->
+<gen type="regex" value="[A-Z0-9]{6}"/>  <!-- uppercase and digits -->
+```
+
+`./run demo.tdc`
+
+```
+[ABC]{6}      [a-z]{6}      [A-Z0-9]{6}
+CAACAA        sahtbc        ZAK0BD
+CCACAC        rvhyfr        Y3K7HY
+AAABAC        ggaqby        IJBWC8
+```
+
+Each slot is chosen independently, so letters repeat in `[ABC]{6}` — it's six
+separate random characters, not a draw without replacement.
+
+## Shorthand classes — `\d` `\w` `\s`
+
+Ready-made sets: `\d` is a digit `[0-9]`, `\w` is a letter/digit/`_`, `\s` is a space
+or tab.
+
+```xml
+<gen type="regex" value="\d{6}"/>
+<gen type="regex" value="\w{8}"/>
+```
+
+`./run demo.tdc`
+
+```
+\d{6}      \w{8}
+702701     tBSvCGXm
+682926     qyR7NqAz
+220609     OQBoE7TG
+```
+
+`\s` is invisible in the output, so spaces and tabs are shown here as `<SP>` and
+`<TAB>` (in real output they're ordinary whitespace):
+
+<!-- doc-check: skip the whitespace is written out as <SP>/<TAB> so a reader can see it -->
+
+```xml
+<gen type="regex" value="A\sB\sC"/>
+```
+
+`./run demo.tdc`
+
+```
+A<TAB>B<TAB>C
+A<SP>B<TAB>C
+A<SP>B<SP>C
+```
+
+## Negated classes — `[^…]` `\D` `\W` `\S`
+
+`[^0-9]` and `\D` give **any printable ASCII character except** the listed ones.
+They're equivalent and produce the same output on the same seed:
+
+```xml
+<gen type="regex" value="[^0-9]{6}"/>
+<gen type="regex" value="\D{6}"/>
+```
+
+`./run demo.tdc`
+
+```
+[^0-9]{6}    \D{6}
+f"Bi#)       f"Bi#)
+cnAz<b       cnAz<b
+@!"%zR       @!"%zR
+```
+
+The set is the **whole printable ASCII** range (letters, digits,
+punctuation), not just letters. If you want letters only, spell it out: `[A-Za-z]`.
+
+## Any character — `.`
+
+The dot is one printable ASCII character (the same set as `\D`, with no exclusions):
+
+```xml
+<gen type="regex" value=".{8}"/>
+```
+
+`./run demo.tdc`
+
+```
+3|{Dy{JH
+z9{Gl0mx
+J^9Pp_%r
+z!Tx'){i
+```
+
+## Quantifiers — how many times
+
+`{n}` is exactly `n`; `{n,m}` is `n` to `m` (random); `?` is zero or one (so `AB?C`
+is `AC` or `ABC`).
+
+```xml
+<gen type="regex" value="[A-Z]{4}"/>    <!-- exactly 4 -->
+<gen type="regex" value="[A-Z]{2,5}"/>  <!-- 2 to 5 -->
+<gen type="regex" value="AB?C"/>        <!-- B optional -->
+```
+
+`./run demo.tdc`
+
+```
+[A-Z]{4}    [A-Z]{2,5}    AB?C
+SAHT        SAHTB         ABC
+RVHY        RVH           AC
+GGAQ        GG            AC
+```
+
+Change the quantifier and the length changes — same "skeleton" (letters, then
+digits), different size:
+
+```xml
+<gen type="regex" value="[A-Z]{2}[0-9]{4}"/>   <!-- short -->
+<gen type="regex" value="[A-Z]{3}[0-9]{8}"/>   <!-- long -->
+```
+
+`./run demo.tdc`
+
+```
+[A-Z]{2}[0-9]{4}    [A-Z]{3}[0-9]{8}
+SA7013              SAH01363846
+RV9260              RVH26087805
+GG6093              GGA09313068
+```
+
+## Alternation and groups — `|` `(…)` `(?:…)`
+
+`cat|dog` picks one variant **at random** on each row. Parentheses group the
+variants so you can attach a suffix or a quantifier.
+
+```xml
+<gen type="regex" value="cat|dog"/>            <!-- alternation -->
+<gen type="regex" value="(cat|dog)-[0-9]{2}"/> <!-- group + suffix -->
+<gen type="regex" value="(?:cat|dog)[0-9]"/>   <!-- no capture -->
+```
+
+`./run demo.tdc`
+
+```
+cat|dog    (cat|dog)-[0-9]{2}    (?:cat|dog)[0-9]
+dog        dog-02               dog7
+cat        cat-82               cat6
+cat        cat-20               cat2
+dog        dog-77               dog2
+```
+
+A plain group `(…)` remembers its choice (capture) so you can refer back to it with
+`\1`. `(?:…)` groups without remembering — use it when you don't need the capture.
+
+> [!NOTE]
+> **Random, not exact**
+>
+> `cat` and `dog` come out unevenly — this is a **random** choice, not exact
+> proportions. For exactly 70/30, use [`advanced_regex`](advanced-regex.md).
+
+## Anchors — `^` `$`
+
+`^` (start) and `$` (end) are zero-width: the generator accepts them but they add
+nothing to the output. `^[A-Z]{3}$` produces the same three letters as `[A-Z]{3}`:
+
+```xml
+<gen type="regex" value="^[A-Z]{3}$"/>
+```
+
+`./run demo.tdc`
+
+```
+FZY
+YHZ
+LRG
+```
+
+## Escaping
+
+Turn a regex metacharacter into an ordinary literal with `\`:
+
+```xml
+<gen type="regex" value="\.\+\(\)\[\]\{\}\\"/>
+```
+
+The generated string is constant here (there are no random slots):
+
+`./run demo.tdc`
+
+```
+.+()[]{}\
+```
+
+Inside a character class, a dash is a literal when it's first or last — then it's
+just the character `-`, not a range:
+
+```xml
+<gen type="regex" value="[-A-C]{8}"/>
+<gen type="regex" value="[A-C-]{8}"/>
+```
+
+`./run demo.tdc`
+
+```
+[-A-C]{8}    [A-C-]{8}
+B-AB--AB     CABCAABC
+BCAC-B-C     C-B-ACA-
+-A-B-CA-     ABACA-BA
+```
+
+The set here is four characters: `A`, `B`, `C`, and `-`.
+
+## Unicode alphabets
+
+Character classes aren't limited to ASCII. The same machinery accepts any Unicode
+BMP range and any built-in **named alphabet**, so the generator localizes without
+special cases. Start with the Latin script most data needs — a plain range covers
+Western European accented letters directly:
+
+```xml
+<gen type="regex" value="[a-zà-ÿ]{8}"/>  <!-- latin + accents -->
+```
+
+`./run demo.tdc`
+
+```
+lþýwüýzy
+ýpþyôkõü
+zìpãöídø
+```
+
+The examples below are a deliberate **Unicode/localization demonstration** —
+non-Latin scripts written exactly the same way. Plain BMP ranges work directly
+inside a character class:
+
+```xml
+<gen type="regex" value="[а-я]{8}"/>   <!-- cyrillic -->
+<gen type="regex" value="[א-ת]{6}"/>   <!-- hebrew -->
+```
+
+`./run demo.tdc`
+
+```
+[а-я]{8}      [א-ת]{6}
+цайчбглу      ףאחפבג
+хщиюжхаъ      עץחשוע
+зибфвюкг      זחאסבש
+```
+
+For real configs, named alphabets are clearer — they're documented, validated by
+name, and can include characters that are awkward to express as a range (like the
+Russian `ё`):
+
+```xml
+<gen type="regex" value="\a{cyrillic.ru.letters}{10}"/>
+<gen type="regex" value="\a{kana.hiragana}{8}"/>
+```
+
+`./run demo.tdc`
+
+```
+\a{cyrillic.ru.letters}{10}    \a{kana.hiragana}{8}
+нБСпВЖЧжХч                     まぃすめいおちふ
+куСьНкАупф                     ほゆすをこぺあょ
+```
+
+You can mix alphabets inside one class — the character is then drawn from the union
+of them:
+
+```xml
+<gen type="regex" value="[\a{arabic.letters}\a{hebrew.letters}]{6}"/>
+```
+
+`./run demo.tdc`
+
+```
+خררػקר
+קسרؾםح
+ؿדسلנה
+```
+
+The escape `\a{name}` is one character from that alphabet, and it behaves like any
+other atom — repeat it with `{n}` or `{n,m}`; inside a class it adds the whole
+alphabet to the set. The full list of names is on the
+[Symbol](symbol.md#named-alphabets-with-alphabet) page.
+
+> [!NOTE]
+> Negated classes (`[^...]`), `\D`, `\W`, `\S`, and `.` invert against the printable
+> **ASCII** set only. For Unicode, spell out a positive set with `\a{name}`.
+
+## Backreferences
+
+A backreference ties parts of a string together: `\1` repeats what the first group
+`(…)` already generated.
+
+```xml
+<gen type="regex" value="([0-9]{3})-[A-Z]{2}-\1"/>
+```
+
+`./run demo.tdc`
+
+```
+299-YZ-299
+929-UE-929
+462-VR-462
+905-BC-905
+```
+
+The first and last three digits **always match** — that's the captured block. This
+is how you build document numbers in which one section repeats.
+
+A reference may only point to a group that was already generated to its left; a
+forward reference is an error:
+
+```xml
+<gen type="regex" value="\1([0-9]{3})"/>
+```
+
+`./run bad.tdc`
+
+```
+error: invalid regex generator pattern: backreference "\1" points to
+a group that is not generated yet
+```
+
+If the capture sits inside a repetition, the backreference uses the **last** value
+that group generated:
+
+```xml
+<gen type="regex" value="([A-Z]){3}-\1"/>
+```
+
+`./run demo.tdc`
+
+```
+FZY-Y
+YHZ-Z
+LRG-G
+```
+
+Here `([A-Z]){3}` runs the group three times, and `\1` echoes only the third letter
+it produced.
+
+## Named groups — `(?<name>…)`
+
+A group can carry a name, and `\k<name>` repeats it. It is the same group `\1` repeats —
+a name is a second way to reach a group, not a second group:
+
+```xml
+<gen type="regex" value="(?<code>[A-Z]{2})-[0-9]{3}-\k<code>"/>
+```
+
+`./run demo.tdc`
+
+```
+FZ-399-FZ
+YH-481-YH
+LR-586-LR
+YA-900-YA
+```
+
+A name makes a long pattern readable, and it is what a conditional reads. Three rules:
+
+- A name starts with a letter or `_` and holds letters, digits and `_`.
+- **A name is used once.** Two groups under one name would make `\k<name>` a coin toss
+  between them, settled by whichever the parser recorded last.
+- `\k<name>` may only name a group that has already closed — the rule `\1` follows.
+
+`(?<=…)` and `(?<!…)` are still lookbehind and still refused. Neither is a group whose
+name begins with `=`.
+
+## Conditionals — `(?(name)yes|no)`
+
+A conditional asks whether a group produced anything and writes one branch or the other.
+It is how you add a separator only when there is something to separate:
+
+```xml
+<gen type="regex" value="(?<area>0[1-9]{2})?(?(area)-|8 )[0-9]{4}"/>
+```
+
+`./run demo.tdc`
+
+```
+099-9944
+039-8189
+063-8608
+016-0097
+8 7683
+8 0194
+```
+
+The area code is optional. Where it appears a `-` follows it; where it does not, the row
+starts `8 ` instead. Without a conditional that is two configs, or a `<switch>`.
+
+- **The conditional draws nothing.** It reads a decision the group already made, so adding
+  one to a pattern leaves every other value in the column exactly where it was.
+- The second branch may be left out: `(?(area)-)` writes the `-` or nothing at all.
+- A group can be tested by number too — `([0-9]{3})?(?(1)-)`.
+- **Two branches, no more.** A third is refused rather than quietly dropped; for a choice
+  inside a branch, group it: `(?(area)(?:x|y)|z)`.
+
+A conditional may only test a group to its left, for the reason a backreference may only
+point to one — the group has produced nothing yet, so the branch could never be taken:
+
+```xml
+<gen type="regex" value="(?(area)-)(?<area>[0-9]{3})"/>
+```
+
+`./run bad.tdc`
+
+```
+error: invalid regex generator pattern: conditional group "(?(area)...)"
+tests group "area", which is not generated yet
+```
+
+## The length guard — `regex_max_length`
+
+Every result is checked against
+[`regex_max_length`](../reference/attributes.md) (default **32**). A pattern that
+could exceed it is rejected **before** generation:
+
+```xml
+<gen type="regex" value="[A-Z0-9]{40}"/>
+```
+
+`./run token.tdc`
+
+```
+error: invalid regex generator pattern: regex can produce 40 characters,
+which exceeds regex_max_length=32
+```
+
+Raise the cap for the whole config on `<tdc>`. Use this when a config has several
+long patterns and you want one place to set the ceiling:
+
+```xml
+<tdc regex_max_length="64">
+    <env count="5" seed="demo">
+        <sequence name="Token"><gen type="regex" value="[A-Z0-9]{40}"/></sequence>
+    </env>
+    <block>
+        <line><data>${{Token}}</data></line>
+    </block>
+</tdc>
+```
+
+`./run token.tdc`
+
+```
+MURI40FXS16A2ABROOBQFGMSDBLWP3TCDTA16VVK
+NPJ3PVSU1NGARTRDQHT92IHGWJZVUST4531IOEAW
+66WWVKTAA2XWUQJBJA8P0SNZ6W3Q75R3CP12JIXW
+```
+
+Or set it **locally**, on just this one generator, when a single field is the
+exception and you don't want to loosen the ceiling everywhere else:
+
+```xml
+<gen type="regex" value="[A-Z0-9]{40}" regex_max_length="40"/>
+```
+
+`./run token.tdc`
+
+```
+H88N88QPEO7XQU8Y3HSZVUVHBRNYDL22R5UYULFK
+8J8P2G372CFQ09IGKO4DBWVJ7OX20A24XAGFOCA2
+PXJS4YC5M13GUWUS7BVTYLT6Y3YFXOC04TLQUFZF
+```
+
+`regex_max_length` does **not** make an infinite regex finite — it only allows an
+already-finite result to be longer.
+
+## What's not allowed
+
+| Not allowed            | Why                                    | Use instead                     |
+| :--------------------- | :------------------------------------- | :------------------------------ |
+| `*`                    | No upper bound                         | `{0,n}`                         |
+| `+`                    | No upper bound                         | `{1,n}`                         |
+| `{n,}`                 | No upper bound                         | `{n,m}`                         |
+| Lazy `*?`, `??`        | Matcher semantics, not generation      | Write the range you want        |
+| Lookahead / lookbehind | Inspects existing text, doesn't build  | Move the condition into the DSL |
+| `\p{...}` / `\P{...}`  | Unicode properties aren't portable yet | `\a{name}` or an explicit class |
+| `\n` / `\r`            | Multi-line generation lives elsewhere  | Use separate `<line>`s          |
+
+For example, `+` is rejected immediately:
+
+```xml
+<gen type="regex" value="[a-z]+"/>
+```
+
+`./run bad.tdc`
+
+```
+error: invalid regex generator pattern: unbounded "+" quantifier is not
+allowed; use "{1,n}"
+```
+
+## Unique values — `uniq="true"`
+
+A pattern is always finite — `*`, `+` and `{n,}` are not allowed — so it can be counted, and
+`uniq="true"` on its sequence gives every row a different string:
+
+```xml
+<sequence name="Plate" uniq="true">
+    <gen type="regex" value="[A-Z]{2}-[0-9]{4}"/>
+</sequence>
+```
+
+The count comes from the pattern's shape: a class counts its characters, a sequence
+multiplies, `|` adds, and `{m,n}` adds up every length it allows. `[A-Z]{2}-[0-9]{4}` is
+26² · 10⁴ = 6 760 000 plates; ask for more rows than that and the run is refused before
+anything is drawn, naming both numbers. Within the count, the draw is simply taken again
+whenever it lands on a plate already given out.
+
+A pattern whose length varies runs out of its short forms first. `{2,10}` picks each of its
+nine lengths one time in nine, so `[0-9]{2,10}` asked for 200 000 unique values gives out all
+hundred two-digit strings and all thousand three-digit ones, and the rest of the column is
+longer. Uniqueness bends the length mix; it does not refuse the request.
+
+Where one string can be reached two ways — `(a|ab)(c|bc)` makes `abc` along both — the count
+is high, and a request close to it can outrun the strings that really exist. The draw notices
+the repeats piling up and stops with the reason rather than looping.
+
+## Exact proportions
+
+Plain `regex` doesn't set percentages inside the expression — `(cat|dog)` is random,
+not "exactly 70/30". For exact shares, use:
+
+- [`<mix percent="…">`](../reference/tags.md) to pick between DSL fragments
+- [`<gen type="text" percent="…">`](text.md) for a set of values
+- [`advanced_regex`](advanced-regex.md) for weighted choice right inside the pattern
+
+## See also
+
+- **[Advanced Regex](advanced-regex.md)** — the same engine plus weighted choice.
+- **[Symbol](symbol.md)** — when you only need a character set, not structure.
+- [`regex_max_length`](../reference/attributes.md) and [`alphabet`](../reference/attributes.md).

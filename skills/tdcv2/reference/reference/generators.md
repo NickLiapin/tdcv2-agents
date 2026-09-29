@@ -1,0 +1,59 @@
+# Generators reference
+
+Every `type` for [`<gen>`](../generators/overview.md). Each one links to its full page.
+
+| `type`                                                  | Produces                                               |
+| :------------------------------------------------------ | :----------------------------------------------------- |
+| [`text`](../generators/text.md)                        | A value from a set — uniform or by exact `percent`     |
+| [`number`](../generators/number.md)                    | An integer in a range, or a fixed-width digit string   |
+| [`template`](../generators/template.md)                | Built-in realistic data and technical IDs              |
+| [`file`](../generators/file.md)                        | Values from your own files and CSV columns             |
+| [`date`](../generators/date.md)                        | A date or date-time in a range and format              |
+| [`symbol`](../generators/symbol.md)                    | A string of characters from a set or named alphabet    |
+| [`regex`](../generators/regex.md)                      | A string matching a finite regular expression          |
+| [`advanced_regex`](../generators/advanced-regex.md)    | Regex, plus weighted choice between alternatives       |
+| [`increment` / `decrement`](../generators/counters.md) | Rising and falling counters                            |
+| [`timeseries`](../generators/timeseries.md)            | A time series — trend + seasonality + noise            |
+| [`pattern`](../generators/pattern.md)                  | A distribution shaped like a drawn curve               |
+| [`http`](../generators/http.md)                        | A value fetched over HTTP from a service you wrote     |
+| [`pool`](../pools/overview.md)                         | One whole member of a `<pool>` — a record, not a value |
+| [`running`](../generators/running.md)                  | A total accumulated down the column, not drawn         |
+| [`stat`](../generators/stat.md)                        | One number over the whole run, on every row            |
+| [`formula`](../generators/formula.md)                  | A column computed from the other columns of its row    |
+
+## Cross-cutting attributes
+
+These work on almost any generator (see [Masks & case](../guides/masks-and-case.md)):
+
+- `case=` / `mask=` — letter case and display masks.
+- `missing=` — leave a share of the cells blank.
+
+Four types refuse all three ([TDC015](errors.md)), and for one reason:
+[`formula`](../generators/formula.md), [`running`](../generators/running.md) and
+[`stat`](../generators/stat.md) are resolved in declaration order, before the formatting
+layer runs, and [`pool`](../pools/overview.md) hands the row a whole member rather than a
+value of its own. Refused rather than ignored, because the answer exists one step later
+and is better: the interpolation filter runs where the value is PRINTED, so
+`${{Weight|mask:x}}` and `${{Doctor.name|upper}}` work today.
+
+The next two only work when the generator produces something they can act on — and they
+part ways on what happens elsewhere: `order=`/`cycle=` are REFUSED, `anomaly=` is about the
+value rather than the generator:
+
+- `order=` / `cycle=` — value order: random by default, or `sequential`. Ordering walks
+  something, so exactly three generators read it: [`text`](../generators/text.md),
+  [`file`](../generators/file.md) and [`date`](../generators/date.md) — a date range is
+  walked a step at a time. **On every other type it is refused** ([TDC015](errors.md)),
+  not ignored: a [`number`](../generators/number.md) draws from a range and has no order
+  to walk, and neither has a regex, a template, a symbol, a counter, a drawing, a series
+  or a statistic.
+- `anomaly=` — push a share of the values out of range by multiplying them. The rule is
+  about the **value**, not the generator: anything that reads as a number is multiplied,
+  including a numeric string from [`text`](../generators/text.md),
+  [`file`](../generators/file.md) or a pack. A non-numeric value beside numeric ones — a
+  name in a mixed list — passes through unchanged, because there is no "further out" for
+  it. A list with **no** numbers at all is refused ([TDC243](errors.md)): nothing there
+  could ever be pushed out of range, so the attribute would do nothing on every row.
+  See [Anomalies & missing values](../guides/anomalies.md).
+
+See also the [Generators overview](../generators/overview.md).

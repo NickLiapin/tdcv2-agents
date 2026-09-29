@@ -1,0 +1,575 @@
+# Expressions
+
+The little language with four homes, all reading the same way:
+
+| Where             | It answers                                                                       |
+| :---------------- | :------------------------------------------------------------------------------- |
+| `if=`             | whether a `<gen>`, a `<line>`, a `<case>` or a `<data>` takes part in this row    |
+| `filter=`         | which members of a [pool](../pools/filter.md) this row may draw from             |
+| `expr=`           | the VALUE of a [`formula`](../generators/formula.md) column                      |
+| a distribution parameter | the value of `mean`, `sd`, `lambda` … [on this row](../guides/statistical-distributions.md#a-parameter-can-follow-another-column) |
+
+The first two consume the answer as a yes/no and throw the value away; the last two keep
+it. Same operators, same functions, same names for the same columns — which is what stops
+a condition and a computed column from coming to mean different things by the same words.
+
+```xml
+<sequence name="Zone">
+  <gen if="Country in [US, CA, MX]" type="text" value="NAFTA"/>
+  <gen if="Country in [FR, DE]"     type="text" value="EU"/>
+  <gen                              type="text" value="ROW"/>
+</sequence>
+<sequence name="Handling">
+  <gen if="Weight > 20"      type="text" value="freight"/>
+  <gen if="_count % 2 == 0"  type="text" value="courier-even"/>
+  <gen                       type="text" value="parcel"/>
+</sequence>
+```
+
+`./run shipping.tdc`
+
+```
+US NAFTA 2kg parcel
+FR EU 14kg courier-even
+CA NAFTA 7kg parcel
+DE EU 30kg freight
+MX NAFTA 5kg parcel
+JP ROW 22kg freight
+```
+
+The last `<gen>` in each sequence has no `if=`, so it catches whatever the conditions above
+did not — the same shape as an `else`.
+
+## Values
+
+| You write         | It means                                                                 |
+| :---------------- | :----------------------------------------------------------------------- |
+| `Country`         | the value that sequence produced on this row                             |
+| `Person.Email`    | a field of a [compound sequence](../core-concepts/sequences.md)         |
+| `Gender.Male`     | "is Gender currently Male?" — the same reading as `parent="Gender.Male"` |
+| `Male`            | a **bare word**: a name that is no sequence is its own text              |
+| `42`, `1.5`       | a number                                                                 |
+| `'text'`          | a quoted string, when the text has spaces or looks like a name           |
+| `_count`, `_last` | a [built-in](builtins.md) — the row number, the last-row flag           |
+
+A bare word is what lets `Gender == Male` be written without quotes. It also means a **typo
+compares against itself and quietly matches nothing** — which is why an unknown name on the
+right of a dot raises [TDC193](errors.md) rather than passing.
+
+## Whole numbers
+
+A double holds every integer up to 2⁵³ and then starts skipping, so an expression built on
+doubles alone answers this way:
+
+`what a double says about two different numbers`
+
+```
+9007199254740993 == 9007199254740992   true
+9007199254740993 -  9007199254740992   0
+```
+
+Both wrong, and wrong without a word — which for a data generator is the worst kind of wrong,
+because the run finishes and the file looks fine. So an operand that IS a whole number is
+carried as one, and only becomes a double when something asks it to:
+
+| | |
+| :--- | :--- |
+| a literal without a point or an exponent | stays whole |
+| a column whose value reads as digits | compares as whole against another whole |
+| `+ - * %` on two whole numbers | stay whole |
+| `abs` `round` `floor` `ceil` `trunc` on a whole number | stay whole — rounding a whole number is that number, whatever its size |
+| `min` `max` `sum` while every argument is whole | stay whole |
+| `/` | **always** floating point — division is not closed over the whole numbers |
+| anything handed to `sqrt`, `log`, `sin`… | becomes a double, because those have no exact answer to give |
+
+The domain is signed 64-bit, the same as the [compute layer](compute.md) — the widest integer
+all five implementations hold natively. An arithmetic RESULT past it is a refusal, in the same
+words compute uses, rather than a quiet slide back into floating point:
+
+`tdcv2 ledger.tdc`
+
+```
+tdcv2: integer overflow: 9223372036854775808 is outside the signed 64-bit range
+```
+
+The refusal comes from the run, not from `check`: both operands are inside the domain and only
+the answer is not, so there is nothing for the validator to prove.
+
+A LITERAL wider than the domain is a different thing, and it is a double. `1 / 0 >
+100000000000000000000` is how you write "bigger than any whole number we hold", and it works;
+the price is that two literals that round to the same double compare equal, so
+`10000000000000000000 == 10000000000000000001` is **true**. Write such a value as text if you
+mean an identifier rather than a number.
+
+One edge worth knowing: −2⁶³ can be reached by arithmetic but not written as a literal, since
+`-9223372036854775808` is a minus sign applied to a magnitude one past the largest positive.
+
+## Operators
+
+| Group      | Operators                        |
+| :--------- | :------------------------------- |
+| comparison | `== != === !== < > <= >=`        |
+| logic      | `&& \|\| !`                      |
+| arithmetic | `+ - * / %`                      |
+| membership | `in`                             |
+| choice     | `a ? b : c`                      |
+
+`+` **adds** whenever both sides read as numbers, and every column reads as text, so
+`Price + Delivery` on two decimal columns is arithmetic and not a joined string. It
+concatenates only when a side is genuinely not a number — `'a' + 'b'` is `ab`. To join
+values deliberately, put them next to each other where they are printed:
+`${{First}} ${{Last}}`.
+
+`==` asks whether both sides are the same **number**; `===` asks whether they print the same
+**characters**. Every column is text, so the two questions are genuinely different — see
+[Comparison and truth](comparison.md), which also settles what counts as true for a bare
+`if="Flag"`.
+
+> [!CAUTION]
+> **`%` is Euclidean, and that is not what your language does**
+>
+> `-3 % 2` is **1** here. JavaScript, Java, C# and Rust all answer −1; Python answers 1.
+>
+> A negative DIVISOR is where Python parts company too: `7 % -3` is **1** here and −2 there.
+> The result never carries a sign — it is always in `0 … |divisor| - 1`.
+>
+> The reason is not taste. The [compute layer](compute.md) already had `<mod>` and already
+> answered 1, so a `%` that borrowed the host convention would make one engine give two
+> different answers to the same question depending on which layer you reached for.
+
+`in` takes a list on its right and nothing else — a list anywhere else raises
+[TDC259](errors.md). Comparison inside it is as loose as `==`, so a text column against a
+list of numeric words still matches.
+
+```xml
+<gen if="Country in [US, CA, MX]" .../>   <!-- instead of three == joined by || -->
+```
+
+## Functions
+
+| Function                   | Takes  | Gives                                            |
+| :------------------------- | :----- | :----------------------------------------------- |
+| `abs(x)`                   | 1      | magnitude                                        |
+| `ceil(x)` `floor(x)`       | 1      | up / down to a whole number                      |
+| `trunc(x)`                 | 1      | toward zero — `trunc(-7.5)` is −7, `floor` is −8 |
+| `round(x)`                 | 1      | nearest, a half **away from zero**               |
+| `min(…)` `max(…)`          | 1 or more | smallest / largest                            |
+| `len(s)`                   | 1      | how many characters                              |
+| `is_empty(s)`              | 1      | whether the text is empty                        |
+| `starts_with(s, p)`        | 2      | prefix test                                      |
+| `ends_with(s, p)`          | 2      | suffix test                                      |
+| `contains(s, p)`           | 2      | substring test                                   |
+| `lower(s)` `upper(s)`      | 1      | case                                             |
+| `split(s, sep)`            | 2      | text cut into a list — see [Lists inside one row](#lists-inside-one-row) |
+| `join(list, sep)`          | 2      | a list back into text                            |
+| `count(list)`              | 1      | how many elements                                |
+| `at(list, i)`              | 2      | the i-th element, counting from **zero**         |
+| `sum(list)`                | 1      | the total — stays whole while every element is   |
+| `mean(list)` `median(list)`| 1      | average, and middle value                        |
+| `stddev(list)`             | 1      | **population** standard deviation, divided by n  |
+| `sqrt(x)`                  | 1      | square root                                      |
+| `pow(x, y)`                | 2      | x raised to y                                    |
+| `exp(x)`                   | 1      | e raised to x                                    |
+| `log(x)` `log10(x)`        | 1      | natural / base-10 logarithm                      |
+| `sin(x)` `cos(x)` `tan(x)` | 1      | circular functions, in **radians**               |
+| `asin(x)` `acos(x)` `atan(x)` | 1   | their inverses, giving radians                   |
+| `atan2(y, x)`              | 2      | the angle of the point (x, y), over (−π, π]      |
+| `sinh(x)` `cosh(x)` `tanh(x)` | 1   | hyperbolic functions                             |
+| `cbrt(x)`                  | 1      | cube root — works on negatives, unlike `pow`     |
+| `expm1(x)` `log1p(x)`      | 1      | eˣ−1 and log(1+x), kept accurate near zero       |
+| `log2(x)`                  | 1      | base-2 logarithm — exact on a power of two       |
+| `asinh(x)` `acosh(x)` `atanh(x)` | 1 | inverse hyperbolic functions                     |
+| `hypot(x, y)`              | 2      | vector length, without overflowing on the way    |
+| `hash(n, salt)`            | 2      | a repeatable value in [0, 1) from a pair of numbers |
+| `noise(t, scale, salt)`    | 3      | smooth drift: a fresh value every `scale` rows, eased between |
+| `gauss(x, c, w)`           | 3      | bell centred on c: `exp(-((x - c) / w)²)`        |
+| `clamp(x, lo, hi)`         | 3      | x held inside [lo, hi]; lo > hi means the ceiling wins |
+| `lerp(a, b, t)`            | 3      | t of the way from a to b; exact at both ends, extrapolates outside |
+| `sign(x)`                  | 1      | −1, 0 or 1                                       |
+| `erf(x)` `erfc(x)`         | 1      | the error function and its complement            |
+| `gamma(x)` `lgamma(x)`     | 1      | Γ(x), and log \|Γ(x)\| for when Γ overflows       |
+| `beta(a, b)`               | 2      | Γ(a)Γ(b)/Γ(a+b)                                  |
+| `digamma(x)`               | 1      | ψ(x), the derivative of log Γ                    |
+| `zeta(s)`                  | 1      | the Riemann zeta function, for real s            |
+| `degrees(x)` `radians(x)`  | 1      | between the two ways of writing an angle         |
+| `prev(Column, initial)`    | 2      | that column one row back — needs `mode="sequential"`, see below |
+
+The operators — comparisons, the logical connectives and arithmetic — are exact, built from
+what IEEE-754 pins down, so the five implementations cannot disagree about them. The
+FUNCTIONS in the table above are the ones TDC computes itself, which is why each carries an
+accuracy bound rather than a promise of exactness.
+
+> [!NOTE]
+> **Two rules worth knowing before you rely on them**
+>
+> **`round` sends a half away from zero.** `round(0.5)` is 1 and `round(-0.5)` is −1.
+> JavaScript rounds a half toward +∞, Python rounds to even, Java rounds half up: three hosts,
+> three answers, none symmetric. TDC states its own so a column of negatives behaves like a
+> column of positives.
+>
+> **`len` counts code points.** `len("😀")` is 1, not the 2 that UTF-16 would give — but a
+> family emoji built from several code points counts as several. Grapheme clusters would be
+> the human answer and need a Unicode segmentation table that not every implementation can
+> carry, so the portable unit wins. `len("10")` is 2: a string function reads its argument as
+> text, never as a number.
+
+## Repeatable randomness, and shapes to put it in
+
+Five of the functions above exist for one job: building a value that VARIES the way real
+data varies, without drawing at random. Each is a plain calculation on its arguments, so
+the same arguments always give the same answer, in every implementation.
+
+### `hash(n, salt)` — a repeatable value in [0, 1) from a pair of numbers
+
+The one to reach for when every row wants its own coefficient:
+
+```xml
+<tdc><env count="5" seed="w">
+  <sequence name="N"><gen type="increment" value="1"/></sequence>
+  <sequence name="Amp"><gen type="formula" decimals="4"
+       expr="1.4 * (0.94 + 0.12 * hash(N, 12.9))"/></sequence>
+</env><block><line><data>${{N}},${{Amp}}</data></line></block></tdc>
+```
+
+```
+1,1.3862
+2,1.4128
+3,1.4559
+4,1.4518
+5,1.4734
+```
+
+`salt` is what makes two columns of the same row differ: `hash(N, 1)` and `hash(N, 2)` are
+unrelated sequences, so one row can carry several independent coefficients without a
+second seed.
+
+It replaces the shader trick — `sin(n * 12.9898) * 43758.5453`, minus its floor — that
+config writers reach for. That trick is safe HERE, because TDC computes its own `sin` and
+the five implementations agree on it to the last bit. What it costs is two transcendental
+calls a row, which are computed in software, and a line nobody can read. `hash` is integer
+arithmetic and says what it is.
+
+### `noise(t, scale, salt)` — smooth drift
+
+A fresh value every `scale` rows, eased between. This is what a wandering baseline
+actually is, and three modulated sine waves cannot do it: measured over 4,096 samples, the
+sines put 74.6 per cent of their power into three frequency bins where this puts 51.5.
+
+```xml
+<sequence name="Drift"><gen type="formula" expr="0.3 * (noise(_count, 300, 7) - 0.5)"/></sequence>
+```
+
+Two properties worth relying on, both exact rather than approximate:
+
+- **At a lattice point the value IS `hash` there.** `noise(k * scale, scale, salt)` equals
+  `hash(k, salt)` — the same bits, not the same to within an ulp — because the easing
+  interpolates with `a * (1 - u) + b * u`. A cell boundary is therefore continuous.
+- **The midpoint of a cell is the plain average of its ends.**
+
+A `scale` of zero divides by zero and gives NaN, the same answer `sqrt(-1)` gives here. In
+a column that is refused by name rather than printed, because a file full of `NaN` nobody
+was warned about is worse than a run that stops.
+
+### `gauss(x, c, w)` — a bell centred on `c`
+
+`exp(-((x - c) / w)²)`: 1 at the centre, falling away on both sides, `w` sets the width.
+
+```xml
+<tdc><env count="7" seed="w">
+  <sequence name="X"><gen type="increment" value="1"/></sequence>
+  <sequence name="G"><gen type="formula" decimals="4" expr="gauss(X, 4, 1.5)"/></sequence>
+</env><block><line><data>${{X}},${{G}}</data></line></block></tdc>
+```
+
+```
+1,0.0183
+2,0.1690
+3,0.6412
+4,1.0000
+5,0.6412
+6,0.1690
+7,0.0183
+```
+
+Not a probability density — it is not scaled to integrate to one. It is the SHAPE, for
+multiplying something else by.
+
+### `clamp(x, lo, hi)` — hold a value inside a range
+
+The guard rail on anything that accumulates. **If `lo` is greater than `hi`, the ceiling
+wins**: `clamp(x, 9, 2)` is 2 for every `x`. The order matters and is stated rather than
+left to whichever comparison the implementation happens to make first — the reference and
+its four ports disagreed about it once, and a shared fixture is what caught it.
+
+### `lerp(a, b, t)` — `t` of the way from `a` to `b`
+
+**Exact at both ends**: `lerp(10, 20, 0)` is exactly 10 and `lerp(10, 20, 1)` is exactly
+20. That is the reason it exists rather than being written out by hand: the natural
+spelling `a + (b - a) * t` misses `b` at `t = 1` in 41 per cent of 200,000 random pairs,
+because the subtraction loses low bits the addition cannot put back. This computes
+`a * (1 - t) + b * t`, which cannot.
+
+Outside [0, 1] it extrapolates rather than refusing — `lerp(10, 20, 2)` is 30 — because a
+value that ran past its range is usually the caller's arithmetic, not a mistake, and
+`clamp` is right there for when it is.
+
+## A column that reads its own past
+
+Every function above answers from ONE row. `prev(Column, initial)` is the exception: it
+reads `Column` from the row before this one, and on the first row it gives `initial`
+instead. That is what a random walk needs — each row is the previous row plus a step —
+and what no expression could say before.
+
+```xml
+<env count="3600" seed="p001" mode="sequential">
+  <sequence name="RR">
+    <gen type="formula" decimals="3"
+         expr="clamp(prev(RR, 700) + (hash(_count, 3) - 0.5) * 180, 350, 1400)"/>
+  </sequence>
+</env>
+```
+
+`prev` takes the column NAME, unevaluated. Writing `RR` anywhere else in that expression
+would give you THIS row's value, which is the one thing `prev` exists to look past.
+
+**It needs `mode="sequential"` on `<env>`, and says so if you forget.** The mode is a
+promise that row N is computed after row N−1. Without it the engine is free to resolve any
+row without touching the one before — that is how it streams a run larger than memory —
+so `prev()` would be reading a row that does not exist yet.
+
+> [!CAUTION]
+> **`mode="sequential"` and `order="sequential"` are different things**
+>
+> `order="sequential"` on a `<gen>` walks that generator's values in the order they are
+> written, instead of drawing at random. It is about ONE column's values.
+>
+> `mode="sequential"` on `<env>` is about the whole RUN: rows are computed one after another.
+> The words match; the subjects do not.
+
+What the mode costs, and what it refuses:
+
+- The run is held in memory (engine 1), and the column-at-a-time optimisations are off.
+  That is the honest price of a column that reads its own past, and only a config that
+  asked for it pays.
+- `mode="sequential"` together with `engine="2"` or `engine="3"` is refused, naming both
+  attributes. Those engines resolve any row without the one before it — that is their
+  design — so the two cannot both be honoured.
+- `prev()` inside an `if=` is refused as well, and so is `prev()` inside a `filter=` or an
+  assert — a condition is answered per row, and the engine answering it may take the rows in
+  any order. The refusal says so rather than pointing at `mode="sequential"`, which in this
+  case is already there. Compute the lookback in a `<gen type="formula">` and test that
+  column instead.
+
+Everything else still works beside it: `percent=`, `uniq` and `distinct` are unaffected,
+because columns are registered in declaration order and that is the same order `prev()`
+depends on.
+
+## Lists inside one row
+
+A sequence with `repeat=` puts several values in one field, joined by its `separator=`.
+An expression sees the **joined text**, because that is what the field holds — so `split`
+is how a list becomes a list, and everything else works on what it hands back.
+
+```xml
+<sequence name="Prices">
+  <gen type="number" value="10..200" repeat="3" separator=","/>
+</sequence>
+<sequence name="Basket">
+  <gen if="sum(split(Prices, ',')) > 300" type="text" value="large"/>
+  <gen type="text" value="ordinary"/>
+</sequence>
+```
+
+`min` and `max` read a list as readily as loose arguments: `max(split(Prices, ','))` and
+`max(1, 9, 4)` both work. An empty separator cuts into single characters, the same unit
+`len` counts, so `count(split(s, ''))` and `len(s)` never disagree.
+
+> [!NOTE]
+> **`at` counts from zero, and refuses an index that is not one**
+>
+> `at(list, 0)` is the first element. **Past the end is empty text** — deliberately, because
+> `repeat="1..4"` makes rows of different lengths on purpose, and asking for the third element
+> of a two-element row is a real question with an empty answer. Use `count(list)` to ask
+> first.
+>
+> Everything else is refused rather than answered with that same empty string: a negative
+> index, a fractional one, an index that is not a number, and a subject that was never split.
+> That last one is the mistake everybody makes first —
+>
+> ```xml
+> <gen if="at(Prices, 1) > 100" …/>   <!-- refused: TDC260 -->
+> <gen if="at(split(Prices, ','), 1) > 100" …/>   <!-- what was meant -->
+> ```
+>
+> `Prices` is the joined text, so the first line asked for the second element of a
+> one-element list and used to render a blank column while the run reported success.
+> Written-out mistakes are caught by `tdcv2 check` before a row exists; an index worked out
+> at run time — `at(list, _count - 1)` — is checked as the row is built.
+
+## Why TDC computes its own transcendentals
+
+IEEE-754 gives `+ - * /` and `sqrt` exactly one legal answer each, so every language agrees
+about them. It says nothing about `sin`, `cos`, `exp`, `log` or `pow` — each libm picks its
+own algorithm — and the gap is measurable, not theoretical:
+
+| | `tan(1)` |
+| :--- | :--- |
+| Node | `3ff8eb245cbee3a6` |
+| Python | `3ff8eb245cbee3a5` |
+
+Sixteen of seventy-seven sampled values disagree somewhere across the five implementations.
+In a `timeseries` that never shows, because every number is rounded to a decimal string
+before it becomes output — the last bit dies on the way out. A comparison has no rounding
+step, so that bit becomes a different row, and a different file, on a tool whose whole
+promise is that five implementations produce the same bytes.
+
+So TDC computes these itself, the way it already computes its own random numbers rather than
+trusting each language's. Every one lands within **4 ulp** of the true value — the same
+neighbourhood a libm occupies — and, far more importantly, on the **same** double in all five.
+Matching any particular libm is not the goal and could not be: the libms do not match each
+other.
+
+That 4 is checked rather than claimed, on grids that run to the ends of each function's range.
+The ends are where it matters: a series truncated two terms early is invisible in the middle
+of an interval and thirteen ulp out at the edge, which is exactly the bug the check was
+written after.
+
+`pow` is the one function with a wider bound, for a reason worth knowing:
+
+| exponent | how it is computed | drift |
+| :--- | :--- | :--- |
+| whole, or a half | repeated squaring, `sqrt` for the half | grows with the exponent — ~4 ulp at 3, ~22 at 20 |
+| anything else | `exp(y · log x)` | grows with \|y · log x\| — ~2 ulp at 1, ~457 at 400 |
+
+Both come from amplification, not from a defect: squaring doubles whatever error it was
+handed, and `exp` turns an absolute error in its argument into a relative one in its answer.
+Twelve significant digits survive either way.
+
+```xml
+<sequence name="Month"><gen type="increment" value="1"/></sequence>
+<sequence name="Load">
+  <gen if="cos(Month / 2) > 0.5"  type="text" value="peak"/>
+  <gen if="cos(Month / 2) < -0.5" type="text" value="trough"/>
+  <gen                            type="text" value="normal"/>
+</sequence>
+<sequence name="Tier">
+  <gen if="pow(2, Month) > 100" type="text" value="large"/>
+  <gen                          type="text" value="small"/>
+</sequence>
+```
+
+`tdcv2 seasonal.tdc`
+
+```
+1 peak small
+2 peak small
+3 normal small
+4 normal small
+5 trough small
+6 trough small
+7 trough large
+8 trough large
+```
+
+That file was run through all five implementations and produced those bytes in every one.
+
+Two things follow from computing them rather than borrowing them. `pow` with a whole-number
+exponent goes through repeated squaring, so `pow(10, 3)` is exactly 1000 rather than
+999.9999999999998 — a config comparing against a round number would have noticed. And the
+circular functions take **radians**, with no degree variant: one convention, stated once.
+
+### The pair that exists because subtraction loses things
+
+`expm1` and `log1p` are not shorthands for `exp(x) - 1` and `log(1 + x)`. They are those
+expressions computed so that the answer survives:
+
+`near zero, the definitions return nothing`
+
+```
+expm1(1e-20)   1e-20        exp(1e-20) - 1     0
+log1p(1e-20)   1e-20        log(1 + 1e-20)     0
+```
+
+The second column is not a rounding error — it is the whole answer, gone. `1 + 1e-20` IS 1 as a
+double, so the logarithm never sees the argument at all; and `exp(1e-20)` is 1.0000…, so the
+subtraction cancels every digit that mattered. `asinh` and `atanh` are built on `log1p` for the
+same reason, and inherit the accuracy.
+
+`hypot` avoids the mirror-image problem at the other end of the range: `sqrt(x² + y²)` overflows
+to infinity for x = 10²⁰⁰, though the answer is perfectly representable. And `log2` separates the
+exponent before taking any logarithm, so `log2(8)` is 3 rather than 2.9999999999999996.
+
+### Where the bound stops being a number of ulp
+
+Four of these carry a bound that is not simply "within 4 ulp", and saying so is
+part of the reference rather than a footnote:
+
+| Function | What holds |
+| :--- | :--- |
+| `erf` | within 4 ulp |
+| `erfc` | within 8 ulp — it passes through e^(−x²), and that exponential carries the rounding of the square |
+| `gamma` | **exact** on whole numbers to 23, within 7 ulp on all 171 a double can hold; twelve significant digits elsewhere |
+| `lgamma` | within 32 ulp away from its zeros; the meaningful bound AT x = 1 and x = 2 is absolute, under 10⁻¹³ |
+
+`lgamma` is the interesting one. It is zero at 1 and at 2, and no method that
+adds up terms of size 1 can be *relatively* accurate about their cancelling to
+nothing — the claim there has to be absolute, and it is. Both zeros come out
+exactly zero.
+
+`gamma` off the whole numbers ends in an exponential, so its drift grows with
+log Γ(x) itself: the same amplification `pow` has, for the same reason. That is
+why a whole number takes the factorial path instead.
+
+## What is deliberately absent
+
+**The mathematics a data generator has no business carrying.** `besselj`, `bessely`, `airy`,
+`elliptic_k`, `elliptic_e` and `polygamma` are refused by name rather than guessed at:
+
+`tdcv2 check seasonal.tdc`
+
+```
+error[TDC257]: besselj() is not available yet in an if expression
+```
+
+Note what it does NOT say: "did you mean `beta`?" Edit distance would have offered exactly
+that, and the two name entirely different functions. A name on this list is answered with
+the reason instead.
+
+Each of these is a project rather than a function, and none has ever plausibly belonged in a
+row predicate. They stay on the list so that a person who reaches for one gets an answer
+rather than "unknown function".
+
+**Loops and recursion.** The engine is chosen from the config before a row is generated,
+[`preflight()`](../guides/large-outputs.md) estimates memory before the run, and `--jobs`
+splits rows across workers. All three need to know the work per row without doing it. A loop
+breaks all three, and what people reach for a loop to express — "is this row even?" — is
+`%`.
+
+**Bitwise operators.** `_count & 1` is `_count % 2` written for a machine. They parse, so
+the message can name them, and then they are refused.
+
+## When an expression is not enough
+
+A [`<compute>` sequence](compute.md) has integer division, remainders, string surgery,
+encodings and checksums. It produces a value like any other sequence, and `if=` then compares
+that:
+
+```xml
+<sequence name="Checksum">
+  <compute><result><mod><to_number><field name="Account"/></to_number><int v="97"/></mod></result></compute>
+</sequence>
+<sequence name="Flag">
+  <gen if="Checksum == 0" type="text" value="divisible"/>
+  <gen type="text" value="."/>
+</sequence>
+```
+
+## The config is XML-shaped, but it is not XML
+
+TDC does not expand entities, so `&lt;` is four literal characters rather than `<`. Write the
+raw character:
+
+```xml
+<gen if="Weight > 20" .../>      <!-- yes -->
+<gen if="Weight &gt; 20" .../>   <!-- no: TDC103, the entity is four characters -->
+```

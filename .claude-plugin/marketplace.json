@@ -1,0 +1,15 @@
+{
+  "name": "tdcv2",
+  "description": "TDCv2 for AI agents",
+  "owner": {
+    "name": "Nikolai Liapin",
+    "url": "https://github.com/NickLiapin"
+  },
+  "plugins": [
+    {
+      "name": "tdcv2",
+      "source": "./",
+      "description": "Test data from a small .tdc config — CSV, JSON, SQL or any text — generated on your machine by the TDCv2 engine; the same config gives the same file every time. A skill that teaches the agent the language, and an MCP server to check, generate and find data packs."
+    }
+  ]
+}

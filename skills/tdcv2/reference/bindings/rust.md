@@ -1,0 +1,133 @@
+# Rust
+
+The crate reads the **same `.tdc` config** and, for the same seed, produces the **same
+output** as the TypeScript, Python, Java and C# implementations — byte for byte, on all
+three engines and in Parquet.
+
+One crate, library and command line together.
+
+## Getting it
+
+> [!TIP]
+> **On crates.io — version 0.3.2**
+>
+>
+> ```bash
+> cargo add tdcv2      # as a dependency
+> cargo install tdcv2  # as a command
+> ```
+>
+> The crate takes **no dependencies**, and the starter data packs are compiled into the
+> binary, so an installed crate needs nothing else on disk. See
+> [Installation](../getting-started/installation.md).
+
+## Using it
+
+```rust
+use tdcv2::Tdc;
+
+let data = Tdc::from_file("users.tdc")?;
+println!("{data}");
+
+for row in data.rows() {
+    println!("{:?}", row.get("Gender"));
+}
+
+data.write_file("users.csv")?;
+```
+
+## Rows, not strings
+
+A row is the reason to use the library rather than the command line. A test that asserts
+on `row.get("Gender")` says what it means; the same test parsing CSV back out of a string
+spends most of its lines on the parsing.
+
+Text output and row output read the same generated values, so the two can never disagree.
+The row view ignores `<block>` and the text wrappers entirely — those describe a file
+format, and a row has no format.
+
+```rust
+use tdcv2::{Options, Tdc};
+
+let data = Tdc::new(Options {
+    config_file: Some("users.tdc".into()),
+    count: Some(100),                 // overrides what <env> declared
+    seed: Some("test".into()),        // pins the run
+    ..Options::default()
+})?;
+
+let first = data.row(0).unwrap();
+println!("{:?}", first.get("Address.city"));   // a compound's field
+println!("{:?}", first.nested()["Address"]);   // or the whole address at once
+```
+
+A sequence that does not apply to a row returns `None`, never `Some("")`. A column
+declared `parent="Gender.Male"` has no value on a female row, and a blank would claim it
+had one that happened to be empty.
+
+## Options
+
+|                                 |                                                                        |
+| ------------------------------- | ---------------------------------------------------------------------- |
+| `config_file` / `config_string` | Exactly one of the two                                                 |
+| `count`, `seed`, `locale`       | Override what `<env>` declared                                         |
+| `engine`                        | Force engine 1, 2 or 3 instead of letting the config route             |
+| `now_millis`                    | Pin the clock, so a test asserting on a date does not expire overnight |
+| `packs_dir`, `data_paths`       | Where packs and `@data/…` sources are found                            |
+| `base_dir`                      | What a relative `src=` is relative to                                  |
+
+A refused config comes back as `TdcError::Refused`, which carries the diagnostics **and**
+the source they point into — so a caller can render the offending line rather than only
+quote the message. `diagnostics()` on a successful run carries what the config was warned
+about but not refused for. `seed()` reports whether the seed was generated: an unseeded
+run is not reproducible, which is almost never what was wanted.
+
+## One value, without a config
+
+`Quick` draws a single value from the same data packs a config reads — no file, no
+`<env>`, one call:
+
+```rust
+use tdcv2::quick::Quick;
+
+let mut tdc = Quick::new();
+
+tdc.get("person.lastName")?;      // Jones
+tdc.get("usa.docs.ssn")?;         // 699209702, with its real check digits
+tdc.many("person.lastName", 5)?;  // five of them
+Quick::seeded("demo").locale("ru").get("person.lastName")?;  // pinned and in Russian
+```
+
+The address is a string here, where TypeScript, Python and C# walk it as members.
+The member shape needs one generated function per address, and a generated surface
+could only cover the packs compiled into the binary — while most packs arrive at run
+time, and `get("ru.person.lastName")` works the moment the download finishes. [One
+value at a time](../getting-started/quick-api.md) is the whole surface.
+
+## No dependencies
+
+The crate depends on nothing. Its lexer and parser are written by hand against the shared
+grammar; so are the PRNG, the DEFLATE decompressor, SHA-256, the Thrift and Snappy
+encoders behind the Parquet writer, and the PNG decoder that reads a
+[drawing](../generators/pattern.md) into a curve.
+
+That is not minimalism for its own sake. Every one of those has to produce the same bytes
+as the other four implementations, and a crate that fixed a rounding rule or a hash in a
+minor release would break the guarantee this project is built on without changing a line
+of TDC.
+
+The one exception is HTTPS, which needs a TLS stack nobody should hand-write. `tdcv2 pack`
+and [`<gen type="http">`](../generators/http.md) run **curl** as a child process; if it
+is missing, the command says so and prints the install line for the platform it is on.
+Everything else — generating data, reading local packs, every output format — works
+without it.
+
+## The same names in every language
+
+The object a run hands back answers to the same names in all five packages, spelled
+each language's own way. [The table is here](same-names.md), and the test suites
+check it rather than take it on trust.
+
+## Requirements
+
+Rust **1.74** or newer.

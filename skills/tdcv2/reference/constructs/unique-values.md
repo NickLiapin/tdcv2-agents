@@ -1,0 +1,424 @@
+# Unique values
+
+Real datasets have two different "no duplicates" rules, and TDC gives you a separate
+tool for each:
+
+| Mechanism    | Scope    | Meaning                                             |
+| :----------- | :------- | :-------------------------------------------------- |
+| `<distinct>` | one row  | fields **don't equal each other** within a row      |
+| `uniq`       | all rows | the **combination of fields** is unique across rows |
+
+Think of them as the same idea on two axes. `<distinct>` works **horizontally** —
+inside a single row, so you never get `John John` or "born in Paris, lives in Paris".
+`uniq` works **vertically** — down the whole dataset, so the same
+`(first, last)` pair never appears twice. Use either, or both in one config on
+**different** fields. On the same fields they are refused (`TDC267`): `uniq` rearranges
+the finished columns and knows nothing about which pairings the `<distinct>` repair
+ruled out, so it would undo the repair.
+
+> [!NOTE]
+> **Example outputs are illustrative**
+>
+> The values below are what a typical run produces. Exact draws can differ by core
+> version and `seed` — what stays fixed is the **structure** each tool guarantees
+> (no in-row collisions for `<distinct>`, no repeated combinations for `uniq`).
+
+*How often each combination of two fields came out. Across: the first field; down: the second.*
+
+- **A** — with distinct, over 60 rows: the diagonal is empty, because a row can never repeat a value across its fields
+- **B** — with uniq, over 6 rows: no cell is ever above 1, because a combination can never repeat across rows — the empty cells are combinations this run simply didn't reach
+
+## `<distinct>` — different within a row
+
+Two [`<gen>`](../generators/overview.md) fields that draw from the **same** list
+run independently, so sooner or later some row hits the same value twice. Here two
+symptoms of one patient both come from a short four-item list, so the clashes show up
+immediately:
+
+```xml
+<sequence name="Case">
+    <gen name="S1" type="text" value="Fever,Cough,Headache,Nausea"/>
+    <gen name="S2" type="text" value="Fever,Cough,Headache,Nausea"/>
+</sequence>
+...
+<data>${{Case.S1}}, ${{Case.S2}}</data>
+```
+
+`./run case.tdc (8 rows)`
+
+```
+Nausea, Headache
+Headache, Headache
+Fever, Cough
+Nausea, Nausea
+Headache, Fever
+Cough, Nausea
+Cough, Fever
+Fever, Cough
+```
+
+Rows 2 and 4 are `Headache, Headache` and `Nausea, Nausea` — not a patient with two
+complaints, but a patient with one complaint written down twice.
+
+**The fix.** Wrap both fields in `<distinct>` — everything else stays the same,
+even the `seed`:
+
+```xml
+<sequence name="Case">
+    <distinct>
+        <gen name="S1" type="text" value="Fever,Cough,Headache,Nausea"/>
+        <gen name="S2" type="text" value="Fever,Cough,Headache,Nausea"/>
+    </distinct>
+</sequence>
+```
+
+`./run case.tdc (8 rows)`
+
+```
+Nausea, Headache
+Headache, Nausea
+Fever, Cough
+Nausea, Cough
+Headache, Fever
+Cough, Nausea
+Cough, Fever
+Fever, Cough
+```
+
+The rows that had no clash are **byte-for-byte the same** — the engine left them
+alone. The two collisions were repaired: `Headache, Headache` became `Headache,
+Nausea`, and `Nausea, Nausea` became `Nausea, Cough`. Only the second field was redrawn, and only where
+it had to be; order and `seed` are untouched.
+
+### Two levels
+
+`<distinct>` works in two places, with the same rule at both: **the direct children
+of `<distinct>` produce different values in each row.**
+
+**1. Inside a [`<sequence>`](../core-concepts/sequences.md)** — it wraps the
+`<gen name="…">` fields. Read it as "A ≠ B", here over the real symptom list from the
+[data pack](../data-packs/overview.md):
+
+```xml
+<sequence name="Case">
+    <distinct>
+        <gen name="A" type="template" value="medical.symptom"/>
+        <gen name="B" type="template" value="medical.symptom"/>
+    </distinct>
+</sequence>
+```
+
+`./run case.tdc (6 rows)`
+
+```
+Constipation + Skin Rash
+Confusion + Constipation
+Itching + Swelling
+Sneezing + Fever
+Cramping + Sneezing
+Itching + Runny Nose
+```
+
+Both fields pull from the same pool, yet the two values in each row always differ.
+
+**2. Inside [`<env>`](../core-concepts/configuration.md)** — it wraps whole
+`<sequence>` blocks. A classic case is "country of birth" versus "country of
+residence": two independent picks from the same country list occasionally land on
+the same country in one row.
+
+```xml
+<env count="100" seed="s">
+    <distinct>
+        <sequence name="Birth"><gen type="template" value="location.country"/></sequence>
+        <sequence name="Live"><gen type="template" value="location.country"/></sequence>
+    </distinct>
+</env>
+```
+
+`./run migration.tdc (6 rows) — Birth -> Live`
+
+```
+France      -> Bhutan
+Panama      -> Chile
+Montenegro  -> Japan
+Cameroon    -> Kenya
+Peru        -> Namibia
+Guatemala   -> Grenada
+```
+
+Now the birth country and the residence country in a single row never match.
+
+### How it works, and the details
+
+The engine generates the fields as usual; if two values inside a group collide in a
+row, it **redraws** one of them with the generator's next value until they differ.
+Determinism is preserved — the redraws happen in a fixed order, so the output for a
+given `seed` doesn't change. It works the same in the in-memory engine and in
+streaming.
+
+Details worth knowing:
+
+- **Values are compared, not sources.** If two fields read from different files but
+  happen to produce the same word, `<distinct>` still redraws.
+- **Groups are independent.** A `<distinct>` for first and middle names and a
+  separate one for something else don't interfere with each other; you can have as
+  many as you like.
+- **Fields outside `<distinct>`** carry no constraint at all.
+- **A list that's too short fails cleanly.** If a list has fewer distinct values
+  than the number of fields that must differ (say, one word for two fields), TDC
+  raises a clear error instead of looping forever.
+- **At the `<env>` level the group takes single-value sequences only** — a plain
+  `<gen>`, a [`<mix>`](mix.md) or a [`<switch>`](switch.md). A compound (multi-field)
+  sequence there is rejected with error `TDC129`.
+
+## `uniq` — the combination never repeats
+
+`uniq="true"` on a **compound** [`<sequence>`](../core-concepts/sequences.md) means
+the combination of **all** its fields never repeats anywhere in the dataset.
+`(James, Miller)` and `(James, Davis)` are fine; two `(James, Miller)` rows are not.
+
+On a **simple** sequence — one unnamed `<gen>` — `uniq="true"` means the value itself
+never repeats: the draw runs **without replacement**. A weighted pack keeps its meaning
+(frequent names are more likely to make the cut), but nothing appears twice. When the
+source holds fewer distinct values than there are records, the run refuses up front and
+names both numbers — never a quiet repeat. Supported sources: `text` value lists,
+`template` packs, `file` columns, plain integer ranges (`value="1..100000"`) and
+[`regex`](../generators/regex.md) and [`advanced_regex`](../generators/advanced-regex.md)
+patterns, which are finite and so can be counted — an `advanced_regex` pattern keeps its weighted
+shares exact, and each share has to have room for its own rows; `increment`/`decrement` are
+unique by construction. A generator whose values cannot be counted (`date`, …) is refused with a
+message saying exactly that.
+
+```xml
+<sequence name="Person" uniq="true">
+    <gen name="first" type="template" value="person.male.firstName"/>
+    <gen name="last"  type="template" value="person.lastName"/>
+</sequence>
+
+<block>
+    <line><data>${{Person.first}} ${{Person.last}}</data></line>
+</block>
+```
+
+No `(first, last)` pair repeats. With 200 first names and 500 last names there are
+up to 100,000 unique pairs; ask for more and you get an honest error up front
+(see below).
+
+### Before / after, on a tiny set
+
+Two fields with tiny sets — `first ∈ {Ann, Bob}` and `last ∈ {Fox, Lee}` — give only
+4 possible pairs. Ask for 4 rows.
+
+**Without `uniq`** (each field random on its own):
+
+```xml
+<sequence name="P">
+    <gen name="first" type="text" value="Ann,Bob"/>
+    <gen name="last"  type="text" value="Fox,Lee"/>
+</sequence>
+<block><line><data>${{P.first}} ${{P.last}}</data></line></block>
+```
+
+`./run p.tdc (4 rows, counted)`
+
+```
+Ann Fox   2
+Bob Lee   2
+```
+
+The combinations **repeat**: `Ann Fox` and `Bob Lee` each came up twice, while
+`Ann Lee` and `Bob Fox` never appeared. Randomness knows nothing about uniqueness.
+
+**With `uniq="true"`** (same config, one attribute added):
+
+```xml
+<sequence name="P" uniq="true">
+    <gen name="first" type="text" value="Ann,Bob"/>
+    <gen name="last"  type="text" value="Fox,Lee"/>
+</sequence>
+```
+
+`./run p.tdc (4 rows, counted)`
+
+```
+Ann Fox   1
+Ann Lee   1
+Bob Fox   1
+Bob Lee   1
+```
+
+All 4 pairs, once each, no repeats.
+
+### Proportions are preserved
+
+The engine only **rearranges** field values between rows; it never changes how many
+of each there are. So a [`percent`](../generators/text.md) list stays exact —
+uniqueness and an exact distribution can coexist. `percent="70,30"` still splits
+70/30 even while every combination stays unique.
+
+### The feasibility check — before generation
+
+Before rendering, TDC works out whether `count` unique combinations are even
+possible from your data. If not, you get an error **immediately**, not hours in:
+
+`./run big.tdc`
+
+```
+tdcv2: uniq "Person" is infeasible — its data supports at most 5000 distinct rows,
+but 10000 were requested. Widen a column's values or lower count.
+```
+
+The tiny set makes the same point. Only 4 pairs exist; ask for `count="5"` and TDC
+doesn't churn away at it — it says so right away:
+
+`./run p5.tdc`
+
+```
+tdcv2: uniq "P" is infeasible — its data supports at most 4 distinct rows,
+but 5 were requested. Widen a column's values or lower count.
+```
+
+> [!NOTE]
+> **Keep a comfortable margin**
+>
+> The maximum number of unique combinations is bounded by the product of the number of
+> **distinct** values in each field. When a field draws randomly ([`text`](../generators/text.md)
+> without `percent`), a skewed sample can shrink the usable pool. For `uniq`, keep a
+> comfortable margin (many more possible combinations than `count`), or set `percent`
+> for an even spread.
+
+## `<uniq>` — across separate sequences
+
+When the fields live in **different** sequences, wrap them in `<uniq>…</uniq>` — the
+**combination of those sequences' values** becomes unique across all rows:
+
+```xml
+<uniq>
+    <sequence name="First"><gen type="template" value="person.male.firstName"/></sequence>
+    <sequence name="Last"><gen type="template" value="person.lastName"/></sequence>
+</uniq>
+<block><line><data>${{First}} ${{Last}}</data></line></block>
+```
+
+Only single-value sequences (a plain [`<gen>`](../generators/overview.md), a
+`<mix>` or a `<switch>`) can go in the group; a compound sequence can't.
+
+#### A `<switch>` in the group cuts it into blocks
+
+A switched value answers the subject of its own row: a male first name belongs on
+a male row and nowhere else. So a group holding a `<switch>` is split by that
+subject — male rows trade among themselves, female rows among themselves — and
+the group's reach is the sum of what each block can hold, not the product of
+every column.
+
+The other members are free to move anywhere, and they are **dealt across the
+blocks in proportion to their sizes** before anything is arranged inside them. That matters
+more than it sounds. A `text` list is laid out in exact shares over the whole
+column; the cut then hands one block whichever values happened to fall there. On
+one shape the male block came out with seven of one value, three of another and
+four of a third, where an even deal is five, five and four — and that was the
+difference between refusing a run and rendering it.
+
+The multiset is never touched, only distributed, so every `percent=` you declared
+survives exactly. And nothing crosses a block: the switched column stays where it
+is, and so does the subject the blocks were cut by.
+
+#### How far a group reaches
+
+A group rearranges the values it drew; it does not draw again to fit. The lists
+themselves are laid out in exact shares — a plain text list always was, and a
+plain pack or file list now takes the same road — and the deal that spreads a
+free column across a `<switch>`'s blocks hands its leftover units out globally,
+so no block can be starved of a value. The result is a clean edge: measured on
+one shape — two subjects, three names each, five shared values — **every count
+up to the ceiling of 30 renders, from every seed, and every count above it is
+refused**. The seed decides which arrangement you get, never whether one exists.
+
+The refusal says what the data allowed:
+
+`./run tight.tdc`
+
+```
+tdcv2: uniq: group "G × F × L" cannot produce 31 unique combinations — the values
+drawn for these sequences allow at most 30 distinct rows. Add more values to a
+member (more distinct names, wider ranges…) or lower the count.
+```
+
+The figure is the reach of the **whole group** — the blocks a `<switch>` cut it
+into, added up — and it is exactly the largest count that renders. If a count is
+refused, the fix is more values in a member: more distinct names, wider ranges.
+
+> [!NOTE]
+> **Not a "unique id"**
+>
+> This is about the uniqueness of a **combination of fields**, not a counter. For a
+> running number, use [`increment`](../generators/counters.md).
+
+### Making a _joined_ value unique
+
+`uniq` is a property of a **draw**. A sequence whose value is
+[computed](../compute/overview.md), or picked per row by `if=`, isn't drawn from a
+pool — there is nothing to take without replacement — so `uniq=` on it is refused
+with [`TDC218`](../reference/errors.md) rather than quietly ignored.
+
+Put `uniq` on the parts instead, and glue them together in the output:
+
+```xml
+<uniq>
+    <sequence name="Area"><gen type="number" value="900..999"/></sequence>
+    <sequence name="Group"><gen type="number" value="1..99" length="2" first_zero="true"/></sequence>
+    <sequence name="Serial"><gen type="number" value="1..9999" length="4" first_zero="true"/></sequence>
+</uniq>
+<block><line><data>${{Area}}${{Group}}${{Serial}}</data></line></block>
+```
+
+Every row's `(Area, Group, Serial)` triple is unique, and because each part is a
+**fixed width** — 3, 2 and 4 digits — the nine-digit string can be split back into the
+triple exactly one way. A unique triple is therefore a unique string.
+
+That last sentence is the whole trick, and it is also its limit. If a part's width
+varied, two different triples could join into the same string: `9|15…` and `91|5…`
+read alike once the boundary is gone.
+
+## Large volumes
+
+`uniq` runs on disk by default, no flags — but **no form of it runs on the fast streaming
+engine**, and which of the other two takes it depends on how you wrote it:
+
+- **`uniq="true"` on a single drawn column** — the common case — draws without
+  replacement, which needs the pool and the values already taken. That is the in-memory
+  engine, so memory grows with `count` and the run is bounded by RAM.
+- **A compound `uniq`, a `uniq` counter, or an env-level `<uniq>` group** goes to the
+  exact on-disk engine: it lays out each column, then **checks the tuples and repairs any
+  collisions**. Memory stays bounded; time does not.
+
+[Which engine runs your config](../guides/large-outputs.md#which-engine-runs-your-config)
+has the full routing, including the four non-`uniq` shapes that land in memory too.
+
+> [!CAUTION]
+> **Exact `uniq` on a huge output is SLOW — `uniq` + `percent` most of all**
+>
+> The sort-and-repair check is thorough, and its cost grows **faster than linearly** with
+> the row count. Memory stays bounded, but time doesn't — hundreds of thousands of unique
+> rows already take **minutes**, and millions can run for **hours or longer**. That's the
+> honest price of guaranteeing _no repeat at all_ across a huge file.
+>
+> **`uniq` together with `percent` on the same columns is the worst case there is:**
+> asking for exact proportions and no repeats at once stacks a constrained layout on top
+> of the sort, which is slower again by a wide margin. If a run is taking forever,
+> dropping either the `percent` or the `uniq` is usually what fixes it.
+>
+> For uniqueness at massive scale, prefer the cheap-by-construction kinds — a
+> [counter](../generators/counters.md), or a [`number`](../generators/number.md) range
+> wide enough that a collision is vanishingly unlikely — and save `uniq="true"` over
+> numeric/percent columns for the sizes where the exhaustive check is worth the wait.
+
+The `mode="memory"` escape hatch (the small in-RAM engine) supports every form of `uniq`
+too — exact, but bounded by RAM. See **[Large outputs](../guides/large-outputs.md)**.
+
+## See also
+
+- **[Sequences](../core-concepts/sequences.md)** — compound sequences and fields,
+  the structures `uniq` and `<distinct>` operate on.
+- **[Determinism & proportions](../core-concepts/determinism.md)** — why `uniq`
+  recomputes when `count` changes.

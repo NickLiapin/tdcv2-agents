@@ -1,0 +1,803 @@
+# The `date` generator
+
+**Use it when** you need a date or a date-time — a birthday, a document date, an
+event timestamp — inside a range and printed in a specific format.
+
+Dates run on TDC's own portable date runtime: a strict parser, a UTC calendar, and
+a localized formatter, with no dependency on moment.js. The same config is designed
+to produce the same dates in every implementation.
+
+Example outputs below are illustrative — the exact values depend on the seed and
+can differ by core version. What stays fixed is the shape and the format.
+
+## At a glance
+
+| Attribute             | What it does                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| :-------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `value`               | `birth`, `today`, `now`, a single date, or a range `START..END`                                                                                                                                                                                                                                                                                                                                                                                                |
+| `range`               | A range `START..END` — a newer spelling of the same idea                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `from` / `to`         | The two endpoints of a range, given separately                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `order`               | `sequential` walks the range instead of drawing from it — see [A date axis](#a-date-axis-walking-the-range-instead-of-drawing-from-it)                                                                                                                                                                                                                                                                                                                         |
+| `step`                | How far each row moves on a walked axis: `15m`, `1h30m`, `2d`, `3mo`, `1y`                                                                                                                                                                                                                                                                                                                                                                                     |
+| `weekdays`            | Which weekdays a walked axis keeps: `mon..fri`, `sun,wed`                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `cycle`               | `false` refuses instead of looping when a walked BOUNDED range runs out                                                                                                                                                                                                                                                                                                                                                                                        |
+| `format`              | Output format (see [Formatting the output](#formatting-the-output)); default `L`                                                                                                                                                                                                                                                                                                                                                                               |
+| `local`               | Twenty-five: `ar`, `cs`, `de`, `el`, `en`, `es`, `fi`, `fr`, `hi`, `hu`, `id`, `it`, `ja`, `ko`, `nl`, `pl`, `pt`, `ru`, `sv`, `th`, `tr`, `uk`, `vi`, `zh-cn`, `zh-tw`. Nineteen also answer to a three-letter alias — `ara`, `ces`, `deu`, `ell`, `eng`, `spa`, `fin`, `fra`, `hun`, `ind`, `ita`, `jpn`, `kor`, `nld`, `pol`, `por`, `tur`, `ukr`, `vie` — and `hi`, `ru`, `sv`, `th`, `zh-cn`, `zh-tw` have none (bare `zh` is accepted and reads the Traditional table). Inherited from [`<env>`](../reference/tags.md) if omitted |
+| `oldest` / `youngest` | Age window in years for `value="birth"` (defaults `80` and `10`)                                                                                                                                                                                                                                                                                                                                                                                               |
+| `precision`           | `day`, `second`, or `millisecond`                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `of`                  | Measure from another date column instead of drawing — see [An interval](#an-interval-a-date-measured-from-another-date)                                                                                                                                                                                                                                                                                                                                        |
+| `plus`                | How far from it: `7d`, `3..10d`, `1..3mo`, `-10..-3d`                                                                                                                                                                                                                                                                                                                                                                                                          |
+
+Use only one of `value`, `range`, or the `from`/`to` pair to describe a range — they
+are three spellings of the same thing. Give none of them and the range runs from
+`1970-01-01` to the current moment; see
+[No bounds at all](#no-bounds-at-all--the-clock-closes-the-range).
+
+The last four attributes belong to a **walked** range and are read only alongside
+`order="sequential"`. On a drawn date `step` or `weekdays` would be silently ignored, so
+they are refused instead (`TDC248`).
+
+## A random date in a range
+
+Give `value` a range as `START..END` (both ends **inclusive**) and you get a random
+date drawn uniformly inside it.
+
+```xml
+<gen type="date" value="2020-01-01..2025-12-31" format="YYYY-MM-DD"/>
+```
+
+`./run demo.tdc (5 rows)`
+
+```
+2024-08-15
+2022-02-04
+2020-06-21
+2025-10-04
+2021-03-31
+```
+
+The endpoints are part of the window. A one-week range makes that easy to see —
+over enough rows, both `2024-06-01` and `2024-06-07` show up:
+
+```xml
+<gen type="date" value="2024-06-01..2024-06-07" format="YYYY-MM-DD"/>
+```
+
+`./run demo.tdc (6 rows)`
+
+```
+2024-06-06
+2024-06-03
+2024-06-01
+2024-06-07
+2024-06-02
+2024-06-02
+```
+
+Input dates are parsed **strictly**, in one of these forms:
+
+- date: `YYYY-MM-DD`, `YYYY.MM.DD`, or `YYYY/MM/DD`;
+- date-time: `YYYY-MM-DDTHH:mm`, `YYYY-MM-DDTHH:mm:ss`, or `YYYY-MM-DDTHH:mm:ss.SSS`;
+- range: `START..END`.
+
+Free text (`June 6th`, `06/06/24`) is **not** accepted — use one of the strict forms
+above.
+
+### The `range` attribute — the same window, a newer spelling
+
+`range="START..END"` means exactly what `value="START..END"` does. It reads better
+when `value` would otherwise look like a keyword, and it's the spelling shared with
+the [`date.range`](../generators/template.md) template.
+
+```xml
+<gen type="date" range="2020-01-01..2024-12-31" format="YYYY-MM-DD"/>
+```
+
+`./run demo.tdc (5 rows)`
+
+```
+2023-11-08
+2021-09-30
+2020-05-23
+2024-10-19
+2021-01-14
+```
+
+The [`format`](../reference/attributes.md) attribute only controls how the date is
+written — it never changes the window, and the window never depends on the format.
+
+### `from` and `to` — the endpoints given separately
+
+When it's clearer to name the two ends separately, use `from` and `to`. This is the
+most natural spelling for date-time windows, where the range would otherwise be one
+long string.
+
+```xml
+<gen type="date"
+     from="2026-05-02T09:00:00"
+     to="2026-05-02T09:00:05"
+     format="YYYY-MM-DDTHH:mm:ss"/>
+```
+
+`./run demo.tdc (5 rows)`
+
+```
+2026-05-02T09:00:04
+2026-05-02T09:00:01
+2026-05-02T09:00:03
+2026-05-02T09:00:00
+2026-05-02T09:00:02
+```
+
+### No bounds at all — the clock closes the range
+
+A `date` generator given **neither** end still produces a date. The window runs from
+`1970-01-01` to the current moment, so the generator reads the clock even though nothing
+in the config mentions a date:
+
+```xml
+<gen type="date" format="YYYY-MM-DD"/>
+```
+
+`./run demo.tdc  —  the same seed, a year apart`
+
+```
+--now 2026-04-23    --now 2027-04-23
+1972-06-01          1972-06-17
+1994-11-20          1995-04-30
+1972-05-06          1972-05-21
+```
+
+This is the easiest way to lose reproducibility by accident. Give the generator two ends,
+or pin the clock with [`--now`](../reference/cli.md#--now--pin-the-clock).
+
+**One** end is not a third option for a range you DRAW from: `from` without `to` is
+`TDC150`, and `range="2020-01-01.."` is `TDC151`. Where a value is sampled, a single end
+says nothing about what to sample. One end IS enough when the range is
+[walked](#a-date-axis-walking-the-range-instead-of-drawing-from-it) — that is the next
+section.
+
+## A date axis: walking the range instead of drawing from it
+
+Everything above **draws**: each row picks a date at random from the window. Ask for a
+row per day for a year and you get repeats and gaps, because that is what drawing means.
+
+Add `order="sequential"` and the range is **walked** instead. Row 0 is the start, row 1
+is one step on, row _i_ is `start + i × step`. This is the time axis a run needs when the
+data is a series rather than a sample: readings, transactions, a log.
+
+### `from` alone — an axis with no end
+
+A walked axis takes only a start. Its last row is `start + (count − 1) × step` — row 0 is
+the start itself — which is a consequence of the run's length rather than something you
+work out and write down:
+
+```xml
+<gen type="date" from="2026-01-01" order="sequential" format="YYYY-MM-DD"/>
+```
+
+`./run axis.tdc (count=5)`
+
+```
+2026-01-01
+2026-01-02
+2026-01-03
+2026-01-04
+2026-01-05
+```
+
+Raise `count` to a million and the axis simply runs a million days. Nothing is expanded
+into a list, so the range costs no memory however long it is.
+
+### `step` — how far each row moves
+
+The default is one day. `step` takes a number and a unit, and units add up:
+
+| Written     | Means              | Group    |
+| :---------- | :----------------- | :------- |
+| `15m`       | 15 minutes         | fixed    |
+| `1h30m`     | 90 minutes         | fixed    |
+| `2` or `2d` | 2 days             | fixed    |
+| `1w`        | 7 days             | fixed    |
+| `3mo`       | 3 calendar months  | calendar |
+| `1y6mo`     | 18 calendar months | calendar |
+
+`m` is the **minute**, as it is in every notation of this shape. The month is `mo`,
+because `m` is taken — and not `M`, since a difference of forty-four thousand between
+three minutes and three months should not rest on the case of one letter.
+
+```xml
+<gen type="date" from="2026-01-01T09:00:00" order="sequential"
+     step="15m" format="YYYY-MM-DD HH:mm"/>
+```
+
+`./run axis.tdc (count=4)`
+
+```
+2026-01-01 09:00
+2026-01-01 09:15
+2026-01-01 09:30
+2026-01-01 09:45
+```
+
+A step is EITHER fixed or calendar, never both. `15m` is always 900,000 milliseconds; a
+month is 28 to 31 days. They add up within their own group and `step="1mo15d"` is refused
+(`TDC247`), because "a month and fifteen days" is 43, 44, 45 or 46 days depending on which
+half you apply first, and a config whose meaning turns on an invisible ordering is worse
+than one that will not parse. Write `45d`, or `1mo`.
+
+### A calendar step keeps the day of the month
+
+Each step is measured **from the start**, never accumulated. That distinction is invisible
+on days and decides the answer on months:
+
+```xml
+<gen type="date" from="2026-01-31" order="sequential" step="1mo" format="YYYY-MM-DD"/>
+```
+
+`./run axis.tdc (count=4)`
+
+```
+2026-01-31
+2026-02-28
+2026-03-31
+2026-04-30
+```
+
+February clamps to the 28th, and March goes back to the 31st. Stepping on from the clamped
+February would have given 28 March and dragged every later month with it.
+
+### `weekdays` — keeping only some days
+
+A filter, not a step:
+
+```xml
+<gen type="date" from="2026-01-01" order="sequential"
+     weekdays="mon..fri" format="ddd YYYY-MM-DD"/>
+```
+
+`./run axis.tdc (count=6)`
+
+```
+Thu 2026-01-01
+Fri 2026-01-02
+Mon 2026-01-05
+Tue 2026-01-06
+Wed 2026-01-07
+Thu 2026-01-08
+```
+
+Friday to Monday is a three-day jump, which is exactly why this is not a step: a step
+keeps the spacing even, and a filter breaks it. Keeping them apart is what lets them
+combine — "every 12 hours, working days only" needs both words:
+
+```xml
+<gen type="date" from="2026-01-02T00:00:00" order="sequential"
+     step="12h" weekdays="mon..fri" format="ddd YYYY-MM-DD HH:mm"/>
+```
+
+`./run axis.tdc (count=6)`
+
+```
+Fri 2026-01-02 00:00
+Fri 2026-01-02 12:00
+Mon 2026-01-05 00:00
+Mon 2026-01-05 12:00
+Tue 2026-01-06 00:00
+Tue 2026-01-06 12:00
+```
+
+Spans use `..`, like every other range in TDC, and a list uses commas: `weekdays="sun,wed"`.
+A span **wraps**, so `fri..mon` is Friday, Saturday, Sunday, Monday — a week is a circle,
+and refusing to go round it would make half the spans unwritable.
+
+Two kinds of step refuse `weekdays` (`TDC250`), for two different reasons.
+
+A **whole number of weeks** lands on the same weekday every time, so the filter would
+match every row or none of them — a full column or an empty one, with nothing said either
+way. That is measured on the step's length, so `14d` is refused exactly as `2w` is, while
+`10d` is fine.
+
+A **calendar step** — `1mo`, `3mo`, `1y` — is refused for the opposite reason: it does
+_not_ fix the weekday. The 15th walks Thursday, Sunday, Sunday, Wednesday, Friday, Monday
+across the first half of 2026. Which rows survive a weekday filter would follow the
+calendar rather than anything written in the config, so the step and the filter are asked
+to be one or the other.
+
+If what you wanted was a **monthly date moved onto the next working day** — the way a
+billing system moves an invoice off a Sunday — that is not expressible today, and the
+filter would not do it: it would drop February entirely rather than move it. A
+**working-day calendar** is a different thing and does work: `step="1d"` with
+`weekdays="mon..fri"`, as above.
+
+### A bounded range wraps
+
+Give a walked range both ends and it loops when it runs out, the way a short list does:
+
+```xml
+<gen type="date" range="2026-01-01..2026-01-03" order="sequential" format="YYYY-MM-DD"/>
+```
+
+`./run axis.tdc (count=7)`
+
+```
+2026-01-01
+2026-01-02
+2026-01-03
+2026-01-01
+2026-01-02
+2026-01-03
+2026-01-01
+```
+
+`cycle="false"` turns running out into a refusal instead:
+
+`./run axis.tdc (range of 2 days, count=4, cycle=false)`
+
+```
+tdcv2: order="sequential" cycle="false": the source has only 2 values, so row 3 has none — shorten count= or lengthen the source
+```
+
+An **open** axis has no end to wrap at, so `cycle` means nothing there.
+
+## A birthday with `value="birth"`
+
+`value="birth"` produces a date of birth relative to the current date, bounded by an
+age window. `youngest` and `oldest` are ages **in years** (defaults `10` and `80`),
+so `youngest="18" oldest="65"` gives working-age adults.
+
+```xml
+<gen type="date" value="birth" youngest="18" oldest="65" format="MM/DD/YYYY"/>
+```
+
+`./run demo.tdc (5 rows)`
+
+```
+07/05/1997
+11/23/1985
+02/14/2003
+09/30/1971
+06/18/1990
+```
+
+**Why use it instead of a fixed range:** the window follows "now", so the same config
+still produces plausible ages next year, with no dates to go back and edit. For a
+birthday tied to a whole synthetic person, the
+[`person.b_day`](../generators/template.md) template takes the same
+`oldest`/`youngest`/`format` attributes.
+
+That is also why the dates move. The window slides forward with the clock, so the same
+seed gives a different birth date tomorrow — the age holds, the date does not. Where the
+output has to stay put — a snapshot test, a fixture, a bug report — pin the clock with
+[`--now`](../reference/cli.md#--now--pin-the-clock).
+
+## `today` and `now`
+
+`value="today"` is the current date; `value="now"` is the current date **and** time.
+Both read from the runtime clock, so they're the natural stamps for "generated on"
+or "as of" fields.
+
+```xml
+<gen type="date" value="today" format="LL"/>
+<gen type="date" value="now"   format="YYYY-MM-DDTHH:mm:ss.SSS"/>
+```
+
+`./run demo.tdc`
+
+```
+value="today" format="LL"                       April 23, 2026
+value="now"   format="YYYY-MM-DDTHH:mm:ss.SSS"   2026-04-23T12:00:00.000
+```
+
+Reading the clock is the point of both, and it is what makes them non-reproducible: the
+seed has no say in what "today" is. Pin the clock with
+[`--now`](../reference/cli.md#--now--pin-the-clock) and `today` and `now` return the
+instant you named, in every run.
+
+## `precision` — the step for date-time ranges
+
+`precision` sets the smallest step a range moves in: `day`, `second`, or
+`millisecond`. For a five-second window stepped by whole seconds:
+
+```xml
+<gen type="date"
+     from="2026-05-02T09:00:00"
+     to="2026-05-02T09:00:05"
+     precision="second"
+     format="YYYY-MM-DDTHH:mm:ss"/>
+```
+
+`./run demo.tdc (5 rows)`
+
+```
+2026-05-02T09:00:04
+2026-05-02T09:00:01
+2026-05-02T09:00:03
+2026-05-02T09:00:00
+2026-05-02T09:00:02
+```
+
+When `precision` is omitted, the default follows the range type:
+
+| Range type               | Default step        | What `precision` changes                              |
+| :----------------------- | :------------------ | :---------------------------------------------------- |
+| date-only (`YYYY-MM-DD`) | one **day**         | rarely needed — the range already steps in whole days |
+| date-time                | one **millisecond** | `precision="second"` zeros the milliseconds           |
+
+Use `precision="second"` whenever you want clean, human-looking timestamps instead of
+millisecond noise; use `precision="millisecond"` (the date-time default) when you need
+sub-second resolution.
+
+## An interval: a date measured from another date
+
+Real records are full of pairs: admitted and discharged, ordered and shipped,
+issued and expires, the start and the end of a shift. The second date is not
+independent of the first — it is the first plus a length — and two separate
+ranges cannot say so. They put the discharge _before_ the admission on a good
+share of the rows.
+
+`of` names the column to measure from and `plus` says how far:
+
+```xml
+<sequence name="Admitted">
+  <gen type="date" from="2026-01-01" to="2026-03-01" format="YYYY-MM-DD"/>
+</sequence>
+<sequence name="Discharged">
+  <gen type="date" of="Admitted" plus="2..14d" format="YYYY-MM-DD"/>
+</sequence>
+```
+
+`./run stay.tdc (6 rows)`
+
+```
+2026-02-06  2026-02-16
+2026-02-14  2026-02-23
+2026-01-11  2026-01-16
+2026-01-11  2026-01-24
+2026-02-27  2026-03-06
+2026-01-08  2026-01-14
+```
+
+Every discharge is after its own admission, by 2 to 14 days — and the _length_
+of each stay is drawn per row, which is the thing two independent ranges throw
+away.
+
+### `plus` — the distance
+
+| Written as | Means                                                  |
+| :--------- | :----------------------------------------------------- |
+| `7d`       | exactly seven days, on every row                       |
+| `3..10d`   | three to ten days, drawn per row (both ends inclusive) |
+| `1..3mo`   | one to three months, by the calendar                   |
+| `-10..-3d` | three to ten days **before** the source                |
+| `45`       | a bare number means days                               |
+
+The units are the ones [`step`](#step--how-far-each-row-moves) already uses:
+`s`, `m`, `h`, `d`, `w`, `mo`, `y` — and as there, `m` is the minute and `mo` is
+the month.
+
+A single value is the same distance on every row:
+
+```xml
+<sequence name="Shipped">
+  <gen type="date" of="Ordered" plus="1d" format="YYYY-MM-DD"/>
+</sequence>
+```
+
+`./run ship.tdc (4 rows)`
+
+```
+2026-05-23  2026-05-24
+2026-05-06  2026-05-07
+2026-05-13  2026-05-14
+2026-05-21  2026-05-22
+```
+
+Write the smaller bound first, as in every other range. To count **backwards**,
+make both bounds negative — `plus="-10..-3d"` is three to ten days earlier.
+`plus="10..3d"` is a typo and is refused (`TDC264`) rather than quietly swapped.
+
+Months and years move by the calendar rather than by a fixed number of days, so
+`2026-01-31` plus one month is `2026-02-28` — the same clamping
+[`step`](#a-calendar-step-keeps-the-day-of-the-month) does.
+
+### The offset reads the value, not the printed text
+
+A date column prints a _rendering_ of its date. `03/02/2026` is the 3rd of
+February under `local="en"` and the 2nd of March under `local="ru"`, and
+`format="MMMM D"` throws the year away entirely. So the offset does not read the
+cell at all: the column it measures from keeps the date it generated, and the
+arithmetic runs on that. Any `format` works, under any locale.
+
+```xml
+<env count="4" seed="visit" local="ru">
+  <sequence name="Visit"><gen type="date" from="2026-03-01" to="2026-03-31"/></sequence>
+  <sequence name="Followup"><gen type="date" of="Visit" plus="2w"/></sequence>
+</env>
+```
+
+`./run visit.tdc (4 rows)`
+
+```
+20.03.2026  03.04.2026
+22.03.2026  05.04.2026
+27.03.2026  10.04.2026
+09.03.2026  23.03.2026
+```
+
+The one case with nothing to read from is a date TDC did not generate — a column
+loaded by [`file`](./file.md), for instance. There only the text exists, so it
+must be in ISO form (`YYYY-MM-DD`), which means one thing in every locale.
+Anything else is refused rather than guessed at.
+
+### The source may be walked, drawn, or another offset
+
+`of=` reads whatever the named column produced. A **walked** source is the pairing real
+records ask for most — orders march down the calendar day by day, and delivery is a few
+days after **its own** order:
+
+```xml
+<sequence name="Ordered">
+  <gen type="date" from="2026-01-01" order="sequential" step="1d" format="YYYY-MM-DD"/>
+</sequence>
+<sequence name="Delivered">
+  <gen type="date" of="Ordered" plus="2..9d" format="YYYY-MM-DD"/>
+</sequence>
+```
+
+`./run orders.tdc (4 rows)`
+
+```
+2026-01-01  2026-01-06
+2026-01-02  2026-01-06
+2026-01-03  2026-01-12
+2026-01-04  2026-01-11
+```
+
+The one source that has no single date to measure from is a **repeating** one: a cell built
+with `repeat=` holds several dates joined by a separator. That is refused by name rather
+than answered with an empty column.
+
+### Chaining, and empty cells
+
+An offset is itself a date this engine produced, so a third column can measure
+from it: signed, expires a year later, remind a month before that.
+
+```xml
+<sequence name="Signed"><gen type="date" from="2026-01-15" to="2026-02-15" format="D MMMM YYYY"/></sequence>
+<sequence name="Expires"><gen type="date" of="Signed" plus="1y" format="D MMMM YYYY"/></sequence>
+<sequence name="Remind"><gen type="date" of="Expires" plus="-30d" format="D MMMM YYYY"/></sequence>
+```
+
+`./run lease.tdc (4 rows)`
+
+```
+5 February 2026 | 5 February 2027 | 6 January 2027
+31 January 2026 | 31 January 2027 | 1 January 2027
+13 February 2026 | 13 February 2027 | 14 January 2027
+20 January 2026 | 20 January 2027 | 21 December 2026
+```
+
+A row whose source has no date — one that a `parent` filter left out, or one
+[`missing`](../guides/missing-data.md) blanked — gets no date either. There is
+nothing to measure from, and inventing one would put a confident-looking value
+in a cell the config said should be empty.
+
+### In a branch
+
+An offset reads only its own row, so it can be one branch of a per-row choice as well: a
+[`<case>`](../constructs/switch.md#case--a-branch-with-a-generator), at any depth, or one of a
+sequence's `<gen if="…">` branches. Each row the branch holds is measured from its own date.
+
+```xml
+<tdc>
+  <env count="6" seed="ship" local="en">
+    <sequence name="Ordered"><gen type="date" from="2026-03-01" to="2026-03-31" format="MMMM D"/></sequence>
+    <sequence name="Method"><gen type="text" value="courier,pickup"/></sequence>
+    <switch name="Ready" on="Method">
+      <case is="courier"><gen type="date" of="Ordered" plus="2..5d" format="MMMM D"/></case>
+      <case is="pickup"><data>same day, at the counter</data></case>
+    </switch>
+  </env>
+  <block><line><data>${{Ordered}} | ${{Method}} | ${{Ready}}</data></line></block>
+</tdc>
+```
+
+`./run shipping.tdc`
+
+```
+March 23 | courier | March 27
+March 6 | courier | March 11
+March 13 | pickup | same day, at the counter
+March 21 | pickup | same day, at the counter
+March 7 | pickup | same day, at the counter
+March 17 | courier | March 19
+```
+
+A ranged `plus=` in a branch draws each row's step from that row's own stream, so a row keeps
+its step when the branch split around it changes.
+
+### What `of` rules out
+
+`of` places the date relative to another column, so the attributes that place its
+**own** draw say nothing any more: `value`, `from`, `to`, `range`, `oldest`,
+`youngest`, `order` and `step`. Writing one beside `of` is refused (`TDC264`)
+rather than ignored — a config that asks for June dates and gets January ones is
+right about what it asked for and wrong about what it got.
+
+The column named by `of` must be declared **above** the offset (`TDC240`), the
+same rule [`running`](./running.md) and [`stat`](./stat.md) follow.
+
+An offset is a column computed from another one, so it is not a part or a field of a composed
+`<sequence>` (`TDC295`): a record's parts are drawn together, and a computed date moved to
+another row no longer describes it. Declare it as a sequence of its own.
+
+The formatting layer is ruled out too, for the same reason it is on a running total:
+an offset is built in declaration order, before that layer runs. `mask`, `case`,
+`missing`, `missing_as`, `repeat`, `anomaly`, `anomaly_factor` and `percent` are
+refused (`TDC015`) rather than ignored. Apply one where the value is **printed**
+instead — `${{Later|mask:x}}`, `${{Later|upper}}` — which is where it works today.
+
+A plain `type="date"` with no `of` reads every one of them normally; it is the offset
+that cannot.
+
+An offset reads a sibling column as the row is built, which the streaming path
+cannot do yet, so a config using one is built [in memory](../guides/large-outputs.md).
+TDC routes it there on its own; you only notice if you force the streaming engine with
+`--engine 2`, which refuses it by name rather than approximating.
+
+## Formatting the output
+
+`format` is a template of tokens. It changes only how a date is **written** — the
+underlying value is untouched. The default is `L` (a locale-aware short date).
+
+Here is every token, applied to one fixed moment: **Tuesday, March 5, 2024,
+09:04:07**. The day and the month are single-digit on purpose, so the padded and
+unpadded pairs differ visibly:
+
+| Token      | Means                         | Example                        |
+| :--------- | :---------------------------- | :----------------------------- |
+| `YYYY`     | 4-digit year                  | `2024`                         |
+| `YY`       | 2-digit year                  | `24`                           |
+| `MMMM`     | full month name               | `March`                        |
+| `MMM`      | short month name              | `Mar`                          |
+| `MM`       | 2-digit month                 | `03`                           |
+| `M`        | month, no leading zero        | `3`                            |
+| `DD`       | 2-digit day                   | `05`                           |
+| `D`        | day, no leading zero          | `5`                            |
+| `dddd`     | full weekday name             | `Tuesday`                      |
+| `ddd`      | short weekday name            | `Tue`                          |
+| `HH`       | 2-digit hour (24h)            | `09`                           |
+| `H`        | hour, no leading zero         | `9`                            |
+| `mm`       | 2-digit minute                | `04`                           |
+| `m`        | minute, no leading zero       | `4`                            |
+| `ss`       | 2-digit second                | `07`                           |
+| `s`        | second, no leading zero       | `7`                            |
+| `SSS`      | milliseconds                  | `000`                          |
+| `Z`        | UTC offset with a colon       | `+00:00`                       |
+| `ZZ`       | UTC offset without a colon    | `+0000`                        |
+| `ISO`      | ISO 8601 date                 | `2024-03-05`                   |
+| `ISO_TIME` | ISO 8601 date and time        | `2024-03-05T09:04:07`          |
+| `L`        | locale-aware short date       | `03/05/2024`                   |
+| `LL`       | locale-aware long date        | `March 5, 2024`                |
+| `LLL`      | locale-aware long date + time | `March 5, 2024 09:04`          |
+| `LLLL`     | the same, with the weekday    | `Tuesday, March 5, 2024 09:04` |
+
+> [!NOTE]
+> **These are tokens, and a near-miss is refused**
+>
+> Every name in the table composes with the others. `LL [at] HH:mm` gives
+> `March 5, 2024 at 00:00`; the named forms are not whole-format keywords that only work
+> alone.
+>
+> **A letter that looks like a token but is not one is an error, not text.** `hh:mm A` is
+> Moment's 12-hour clock and AM/PM marker, which TDC does not have; it used to print itself
+> — `hh:00 A` — and the run said nothing. It now fails `check` and names what to do:
+>
+> ```
+> error[TDC152]: date format: "hh" is not a token — write it as [hh] if it is meant to be literal text
+> ```
+>
+> Ordinary words are untouched, because their letters are not token letters: `DD of MM`
+> still gives `05 of 03`. Bracket anything you want kept verbatim, which is the rule
+> [below](#literal-text-with-brackets) anyway.
+
+Month and weekday names, and the four `L` forms, follow the locale — see
+[below](#locale-aware-formats-l-and-ll). Everything else is the same in every
+language.
+
+The same date under four formats — same seed, so the date is identical on each line
+and only the writing differs:
+
+```xml
+<gen type="date" value="2020-01-01..2024-12-31" format="YYYY-MM-DD"/>
+<gen type="date" value="2020-01-01..2024-12-31" format="DD.MM.YYYY"/>
+<gen type="date" value="2020-01-01..2024-12-31" format="DD MMM YYYY"/>
+<gen type="date" value="2020-01-01..2024-12-31" format="LL"/>
+```
+
+`./run demo.tdc`
+
+```
+YYYY-MM-DD    DD.MM.YYYY    DD MMM YYYY    LL
+2023-11-08    08.11.2023    08 Nov 2023    November 8, 2023
+2021-09-30    30.09.2021    30 Sep 2021    September 30, 2021
+2020-05-23    23.05.2020    23 May 2020    May 23, 2020
+```
+
+### Literal text with brackets
+
+Anything in square brackets is copied through verbatim, so you can wrap a date in
+fixed text:
+
+```xml
+<gen type="date" value="2024-03-15..2024-03-15" format="[date:] YYYY-MM-DD"/>
+```
+
+`./run demo.tdc`
+
+```
+date: 2024-03-15
+```
+
+### Locale-aware formats: `L` and `LL`
+
+`L`, `LL`, `LLL` and `LLLL` follow the locale, taken from the `local` attribute (or
+`local` on [`<env>`](../reference/tags.md)) — as do the name tokens `MMMM`, `MMM`,
+`dddd` and `ddd`. The default locale is `en`. Numeric templates like `YYYY-MM-DD` and
+`DD.MM.YYYY` never depend on the locale — only on the template you write.
+
+Where the words come from: twenty-four locales are built into the engine, and any
+other locale whose data pack ships a `DATE_LOCALE.json` — seventy do — translates
+its dates the moment the pack is visible. Georgian, Latvian, Kazakh and their kind
+render their own months and weekdays now, including the in-a-date month form
+(`15 იანვარს`), where they used to fall back to English without a word. A shipped
+file carries `L` and `LL`; `LLL` and `LLLL` are taken from it when it writes them
+and derived otherwise — `LL` plus the time, the weekday in front. A locale with no
+date words at all still renders English, and the validator says so rather than
+letting it pass silently.
+
+Here is the fixed date `2024-03-15` under `format="LL"`, first in the default English
+locale, then re-rendered with `local="ru"` to show the localized month name and
+long-date form — a deliberate localization demo:
+
+```xml
+<gen type="date" value="2024-03-15..2024-03-15" format="LL"/>            <!-- default en -->
+<gen type="date" value="2024-03-15..2024-03-15" format="LL" local="ru"/> <!-- Russian -->
+```
+
+`./run demo.tdc`
+
+```
+default (en)   March 15, 2024
+local="ru"     15 марта 2024 г.
+```
+
+`L` shifts the same way: `03/15/2024` in `en`, `15.03.2024` in `ru`.
+
+## Gotchas, in one place
+
+- Input dates are parsed **strictly** — use `YYYY-MM-DD` (or `.` / `/`), not free text.
+- Both range endpoints are **inclusive**.
+- `value`, `range`, and `from`/`to` are three spellings of one window — use whichever reads best.
+- `L` / `LL` change with `local`; `YYYY-MM-DD` and friends do not.
+- Date-only ranges step by day; date-time ranges by millisecond unless you set `precision`.
+- `order="sequential"` WALKS the range; without it every row is an independent draw.
+- On a walked axis `m` is the minute and `mo` is the month. `step="1mo15d"` is refused —
+  write `45d` or `1mo`.
+- `weekdays` filters, `step` paces. They combine, and neither replaces the other.
+- `today`, `now`, `value="birth"` and a generator with **no** bounds read the clock, so
+  the seed alone does not reproduce them — pin the clock with
+  [`--now`](../reference/cli.md#--now--pin-the-clock).
+- `of` measures from another column and `plus` says how far. The column named must be
+  declared **above**, and the attributes that bound the generator's own draw (`from`, `to`,
+  `value`, `range`, `order`, `step`, `oldest`, `youngest`) are refused beside it.
+- An offset works from the date the source column generated, not from the text it printed,
+  so any `format` and any `local` are fine. Only a date TDC did not generate — one read from
+  a file — has to be in ISO form.
+- `format` applies **only** to dates. On template identifiers (SSN, IBAN, phone…) it is an error — shape those with [interpolation filters](../core-concepts/output-formatting.md) instead.
+
+## See also
+
+- [`format`](../reference/attributes.md), [`range`](../reference/attributes.md), and [`local`](../reference/attributes.md) in the attribute reference.
+- **[Template](../generators/template.md)** — `person.b_day` and `date.range` share this same date formatting.

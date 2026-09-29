@@ -1,0 +1,63 @@
+# Python
+
+The Python package reads the **same `.tdc` config** and, for the same seed, produces
+the **same output** as the TypeScript, Java, C# and Rust implementations. That
+cross-language guarantee is one of TDC's core promises.
+
+## Getting it
+
+> [!TIP]
+> **On PyPI — version 0.3.2**
+>
+>
+> ```bash
+> pip install tdcv2
+> ```
+>
+> That gives you both the library and the `tdcv2` command, with a starter set of data
+> packs inside the wheel. See [Installation](../getting-started/installation.md) for the
+> whole picture.
+
+## Using it
+
+```python
+from tdcv2 import TDC
+
+data = TDC(config_file="users.tdc")
+print(data)
+
+for row in data:
+    print(row["Gender"])
+
+data.write_file("users.csv")
+```
+
+The whole output is `str(data)`, the rows are what you iterate over, one row is
+`data[3]`, and `len(data)` is how many there are — the object behaves like the Python
+you already write.
+
+Beside those, the package answers to the names every implementation shares —
+`to_string`, `to_array`, `iterate`, `get_at`, `to_columns`, `write_file`, `seed_info`,
+`preflight` — so an example written in another language reads here unchanged. See
+[the same names everywhere](same-names.md). Python's own `to_list`, `rows`, `uses_http`,
+`diagnostics`, `count` and `engine` are unaffected and not deprecated.
+
+## One value, without a config
+
+The package also exports `tdc`, which draws a single value from the same data packs
+a config reads — no file, no `<env>`, one call:
+
+```python
+from tdcv2 import tdc
+
+tdc.person.lastName()                             # Jones
+tdc.country.usa.docs.ssn()                        # 699209702, with its real check digits
+tdc.person.lastName.many(5)                       # five of them
+tdc.seed("demo").locale("ru").person.lastName()   # pinned and in Russian
+```
+
+The segments stay camelCase here, unlike the method names above. They are addresses
+the packs already carry, not identifiers this package chose, and `person.lastName`
+has to read the same way in a config, in the reference and in the other four
+implementations. [One value at a time](../getting-started/quick-api.md) is the whole
+surface.

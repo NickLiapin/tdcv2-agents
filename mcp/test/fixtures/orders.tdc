@@ -1,0 +1,13 @@
+<tdc>
+  <env count="1000" seed="orders" local="en">
+    <before><line><data>order_id,status,tracking_number,amount</data></line></before>
+    <sequence name="OrderId"><gen type="increment" value="100001"/></sequence>
+    <sequence name="Status"><gen type="text" value="shipped,pending,cancelled" percent="70,20,10"/></sequence>
+    <sequence name="Tracking" parent="Status.shipped"><gen type="regex" value="[A-Z]{2}[0-9]{9}"/></sequence>
+    <sequence name="Amount"><gen type="number" value="5..500" decimals="2"/></sequence>
+    <assert each="Amount >= 5 && Amount <= 500" says="every amount is between 5 and 500"/>
+  </env>
+  <block>
+    <line><data>${{OrderId}},${{Status}},${{Tracking}},${{Amount}}</data></line>
+  </block>
+</tdc>

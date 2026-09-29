@@ -1,0 +1,164 @@
+# `running` — a total that carries down the column
+
+**Use it when** a value is not drawn but _accumulated_: an account balance after each
+transaction, a meter that only goes up, the largest load seen so far. Row 40's value
+depends on rows 1 to 39.
+
+Every other generator answers a row from its own index. This one cannot, and that is not
+a limitation to work around — it is what "running" means.
+
+```xml
+<tdc>
+  <env count="8" seed="ledger" local="en">
+    <sequence name="Op"><gen type="number" value="-400..500"/></sequence>
+    <sequence name="Balance"><gen type="running" of="Op" accumulate="sum" base="1000"/></sequence>
+  </env>
+  <block>
+    <line><data>${{Op}}   ${{Balance}}</data></line>
+  </block>
+</tdc>
+```
+
+`./run ledger.tdc`
+
+```
+399   1399
+-246   1153
+-270   883
+159   1042
+24   1066
+-400   666
+419   1085
+80   1165
+```
+
+> [!NOTE]
+> **Outputs are illustrative**
+>
+> The values come from a fixed `seed`, so they're reproducible, but exact strings can differ
+> between core versions. Treat them as examples of _shape_, not guarantees.
+
+## At a glance
+
+| Attribute    | Required | What it does                                                       |
+| :----------- | :------- | :----------------------------------------------------------------- |
+| `of`         | yes      | The column to accumulate. Must be **declared above** this sequence |
+| `accumulate` | yes      | `sum`, `min` or `max`                                              |
+| `base`       | no       | The opening value — an opening balance, a starting odometer        |
+| `reset`      | no       | A column whose change restarts the total                           |
+
+A running total **draws nothing**. It reads a column that already exists, consumes no
+randomness at all, and therefore adding one leaves every other column exactly where it
+was.
+
+## `reset=` — one total per group
+
+Without `reset=` there is one total for the whole file. With it, the column is split into
+segments and each is accumulated on its own — a balance per account rather than a balance
+per run.
+
+```xml
+<env count="9" seed="acct" local="en">
+    <sequence name="Account"><gen type="text" value="A,A,A,B,B,C,C,C,C" order="sequential"/></sequence>
+    <sequence name="Op"><gen type="number" value="10..99" decimals="2"/></sequence>
+    <sequence name="Balance"><gen type="running" of="Op" accumulate="sum" reset="Account"/></sequence>
+</env>
+```
+
+`./run accounts.tdc`
+
+```
+A  49.86  49.86
+A  21.54  71.40
+A  35.12  106.52
+B  80.60  80.60
+B  98.09  178.69
+C  33.58  33.58
+C  23.09  56.67
+C  72.74  129.41
+C  94.78  224.19
+```
+
+`base=` is the opening value of **each segment**, not of the run: with `reset=`, every
+group starts from it again — which is what a per-account opening balance wants.
+
+A segment ends when `reset=`'s value **changes from the previous row**, so the groups have
+to be contiguous. `order="sequential"` above is one way to get that; sorting is another —
+though [the database usually does the sorting](../constructs/overview.md), so the common
+case is a column that already comes out grouped.
+
+## Exact decimals
+
+The arithmetic runs on whole numbers scaled by the widest fraction in the column, never on
+floating point. `49.86 + 21.54` is `71.40` — and it is the same `71.40` in all five
+implementations, which a float would not guarantee.
+
+`base=` joins that scale. An opening `1000.00` widens the whole column to two decimals,
+which is what a reader of a ledger expects.
+
+## Declaration order
+
+`of=` and `reset=` both name a column, and both must be **declared above** the running
+total (`TDC240`). The reason is the same one [`parent`](../guides/hierarchical-dependencies.md)
+has: the total is built out of a column that already exists.
+
+`./run ledger.tdc`
+
+```
+error[TDC240]: of="Op" is not a sequence declared above this one
+ --> ledger.tdc:3:54
+  |
+3 |     <sequence name="Balance"><gen type="running" of="Op" accumulate="sum"/></sequence>
+  |                                                      ^^
+  |
+note: A running total is built from a column that already exists, so the column it reads has to come first.
+```
+
+A running total that does not say what or how to accumulate is `TDC239`.
+
+A running total is a **whole column** — each row carries every row before it — so it has to be
+a `<sequence>` of its own. Inside a `<case>`, as one of the `<gen if="…">` branches, or as a part
+or a field of a composed sequence it is refused with `TDC295`: a branch holds some rows and not
+others, and a total over "the rows this branch happened to get" is not a number anyone asked
+for. Build the total as its own sequence above, and use it by name where you need it.
+
+## Which engine runs it
+
+The [streaming engines](../guides/large-outputs.md) refuse a running total, by name, and
+the router sends the config to the in-memory one:
+
+`./run ledger.tdc --engine 2`
+
+```
+tdcv2: a running total ("Balance") is the accumulation of every row before it, so it cannot be computed one row at a time; the in-memory engine handles it (run without a forced streaming engine)
+```
+
+You normally never see that message — the router picks the engine itself, and the refusal
+only surfaces when a config _names_ a streaming engine and so has asked to be told.
+
+What it costs: a running total is held in memory for the run, like any in-memory column.
+That is the honest boundary of this generator. A ledger of a few million rows is fine; a
+billion-row ledger is not something TDC does, because the whole point of the streaming
+engines is that a row can be computed from its index, and here it cannot.
+
+> [!TIP]
+> **If the same row is enough, use a formula**
+>
+> A running total is the right tool when a row has to know about the rows BEFORE it. When
+> it only has to know about itself — a line total from a price and a quantity, a margin
+> from two columns — [`<gen type="formula">`](formula.md) does that and **streams**, so
+> the whole-column boundary above never applies.
+
+**Everything else still streams.** The limit is per config, not per project: a run without
+a running total is untouched, and the [running total inside one
+record](../constructs/multiple-values.md#accumulate--a-running-total-across-the-list)
+— `accumulate=` on a `repeat` list — costs nothing at all and works on every engine.
+
+## See also
+
+- [`accumulate=` on a repeat list](../constructs/multiple-values.md#accumulate--a-running-total-across-the-list) —
+  the same idea inside one record, free on every engine
+- [Counters](counters.md) — `increment` and `decrement`, which move by a fixed step and
+  _are_ computable from the row index
+- [Timeseries](timeseries.md) — a curve that rises with trend and noise, also from the
+  index alone, and usually what "a value that grows" really needs

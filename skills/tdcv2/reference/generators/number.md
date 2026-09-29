@@ -1,0 +1,356 @@
+# The `number` generator
+
+**Use it when** you need an integer — an id, a code, a price, an age — inside a
+range; or a string of exactly _N_ digits (even hundreds or thousands of them, far
+past what an ordinary number type can hold).
+
+The `number` generator has several modes, chosen by which of `value` and `length`
+you provide. This page walks through each one.
+
+## At a glance
+
+| Attribute    | Required | What it does                                                        |
+| :----------- | :------- | :------------------------------------------------------------------ |
+| `value`      | no       | `bit`, one number `"50"`, a list `"10,20,35"`, a range `"100..999"`, or any mix |
+| `length`     | no       | Fixed width `"10"`, a range `"2-10"`, or groups `"2,10-12"`         |
+| `percent`    | no       | Shares for `length` groups, e.g. `length="2,10-12" percent="85,15"` |
+| `first_zero` | no       | `true` / `false` — whether a leading zero is allowed                |
+| `include`    | no       | Add numbers or ranges to `value`                                    |
+| `exclude`    | no       | Remove numbers or ranges from `value`                               |
+| `decimals`   | no       | Digits after the decimal point, `0`–`10` — makes the column fractional |
+
+With **no** `value` and **no** `length`, `number` emits a single random digit
+`0`–`9`.
+
+`./run demo.tdc`
+
+```
+7
+2
+9
+0
+4
+```
+
+## A single bit
+
+`value="bit"` gives a random `0` or `1`, which is what a boolean-style flag needs.
+
+```xml
+<gen type="number" value="bit"/>
+```
+
+`./run demo.tdc`
+
+```
+1
+1
+1
+1
+0
+```
+
+## One number, or a few
+
+`value` takes a single number when the column should always hold it, and a
+comma-separated list when it should hold one of a few:
+
+```xml
+<gen type="number" value="50"/>        <!-- always 50 -->
+<gen type="number" value="10,20,35"/>  <!-- one of the three -->
+```
+
+`./run demo.tdc`
+
+```
+50        35
+50        20
+50        35
+50        20
+50        10
+```
+
+Both forms exist so that a constant or a small set of numbers stays **inside the
+numeric generator**, where the numeric attributes mean what they say. Before, neither
+was accepted here and the only way to write "always 50" was `<gen type="text"
+value="50"/>` — a list of strings that happen to look like a number. That works, and
+it still does, but the checking is different in a way that matters: a text list is
+checked by reading it, so `value="hello,50"` with `anomaly=` passes and then quietly
+spikes only half as often as you asked, because a word cannot be multiplied. In
+`number` every value is a number by construction, so a declared rate is a delivered
+rate.
+
+## A range
+
+Give `value` a range as `from..to` (inclusive) and you get a random integer inside
+it.
+
+```xml
+<gen type="number" value="1000..9999"/>
+```
+
+`./run demo.tdc`
+
+```
+7990
+6325
+8602
+6092
+3258
+```
+
+Two rules about the syntax:
+
+- The separator is **always** `..`, never a single dash.
+- A single `-` inside `value` is the **minus sign** of a negative number, so
+  so a negative range needs no escaping:
+
+```xml
+<gen type="number" value="-500..-200"/>
+```
+
+`./run demo.tdc`
+
+```
+-267
+-322
+-246
+-330
+-425
+```
+
+### Leading zeros are kept
+
+If the range is written with leading zeros, the width is preserved, which is what
+fixed-width codes need:
+
+```xml
+<gen type="number" value="0000..9999"/>
+```
+
+`./run demo.tdc`
+
+```
+7767
+5916
+8446
+5658
+2509
+```
+
+## Several ranges at once
+
+Pass a comma-separated list of bracketed ranges and TDC first picks one range at
+random, then a number inside it.
+
+```xml
+<gen type="number" value="[0..100],[345..678],[1934..2026]"/>
+```
+
+`./run demo.tdc`
+
+```
+1952
+662
+1975
+664
+85
+```
+
+> [!NOTE]
+> **Distribution detail**
+>
+> With a range **list**, each _range_ is equally likely, and then a number _inside_
+> the chosen range is equally likely — so individual numbers are **not** uniform
+> across the whole set. If you want a genuinely uniform pick over a range minus a few
+> holes, use `exclude` (below) instead.
+
+## Fixed width with `length` (padding)
+
+When you give **both** `value` and `length`, `length` acts as a display width:
+short numbers are padded with leading zeros, longer ones print as-is. Same seed,
+so the numbers are identical — only the width changes:
+
+```xml
+<gen type="number" value="1..999"/>            <!-- raw -->
+<gen type="number" value="1..999" length="4"/> <!-- same series, width 4 -->
+```
+
+`./run demo.tdc`
+
+```
+raw    length="4"
+770  →  0770
+350  →  0350
+79   →  0079
+959  →  0959
+208  →  0208
+```
+
+The numbers didn't change — they were just padded to four digits. In this padding
+mode a leading zero is allowed by default (so a short value can reach the width).
+
+## `decimals` — a fractional column
+
+**Problem.** A price, a rate, a measurement. `value="1..999"` gives you whole numbers;
+`decimals="2"` gives you the same range with two digits after the point.
+
+```xml
+<gen type="number" value="1..999" decimals="2"/>
+```
+
+`./run price.tdc`
+
+```
+776.15
+591.50
+843.99
+```
+
+`decimals` takes an integer **0 to 10**. Anything else stops the run:
+
+`./run price.tdc (decimals="11")`
+
+```
+tdcv2: number decimals must be an integer 0..10, got "11"
+```
+
+It **replaces** `length` rather than joining it — a fractional value has no integer
+width to pad, so the pair is `TDC278`:
+
+`tdcv2 check price.tdc`
+
+```
+error[TDC278]: length="8" is not read beside decimals="2" — a fractional value has no integer width to pad
+```
+
+It does not combine with [`include` / `exclude`](#add-and-remove-numbers-include--exclude)
+either. For a fractional column drawn from a **shape** rather than a flat range, see
+[Statistical distributions](../guides/statistical-distributions.md).
+
+## Digit-string mode
+
+Give `length` **without** `value` and the generator switches modes: it assembles
+the result digit by digit and always returns a string of exactly that length. This
+is not a JavaScript number — it's text — so you can generate identifiers hundreds
+or thousands of digits long.
+
+```xml
+<gen type="number" length="10" first_zero="true"/>
+```
+
+`./run demo.tdc`
+
+```
+7299399441
+5929481897
+8462586083
+5905900972
+2876831899
+```
+
+Here `first_zero="true"` allows a leading zero. None of these five happen to start with
+one — a leading zero is one draw in ten, so a short sample often has none. Over 200 rows
+it appears 16 times; without the attribute, 0 times. That is the whole of what it does:
+the first digit in this mode is never zero unless you ask for it.
+
+### Variable length
+
+`length` can itself be a range, or groups with shares:
+
+```xml
+<gen type="number" length="2-10"/>                       <!-- random length 2..10 -->
+<gen type="number" length="2,10-12" percent="85,15"/>    <!-- 85% short, 15% long -->
+```
+
+`./run demo.tdc`
+
+```
+length="2-10"            → 70270136
+length="2,10-12" 85/15   → 77
+```
+
+The `percent` here works exactly like it does for [`text`](text.md#exact-proportions-with-percent):
+over `count="100"`, exactly 85 values are length 2 and 15 are length 10–12.
+
+## `first_zero` — control the leading zero
+
+`first_zero` decides whether the **first** digit may be `0`. The default depends on
+the mode:
+
+- **Padding mode** (with `value`): a leading zero is **allowed** by default, so
+  padding can reach the width. `first_zero="false"` forbids it — TDC then draws a
+  value that already has enough digits:
+
+```xml
+<gen type="number" value="0..9999" length="4"/>                    <!-- zero ok -->
+<gen type="number" value="0..9999" length="4" first_zero="false"/> <!-- no zero -->
+```
+
+`./run demo.tdc`
+
+```
+default        first_zero="false"
+7701      →     7701
+3494      →     3494
+0785      →     2379
+9597      →     9597
+2078      →     2078
+```
+
+Only `0785` (the one value that started with a zero) is replaced by a full
+four-digit `2379`; everything else already had no leading zero and is untouched.
+
+- **Digit-string mode** (no `value`): a leading zero is **forbidden** by default.
+  Pass `first_zero="true"` when the string is allowed to start with a zero (the
+  ten-digit example above).
+
+## Add and remove numbers: `include` / `exclude`
+
+To carve a couple of holes out of a range without spelling out a list of
+sub-ranges, use `exclude` (remove) and `include` (add). Values are numbers or
+`a..b` ranges, comma-separated.
+
+```xml
+<gen type="number" value="0..9" exclude="3"/>               <!-- 0–9 except 3 -->
+<gen type="number" value="1000..9999" exclude="1234,5678"/> <!-- ids minus two -->
+<gen type="number" value="0..100" exclude="40..60"/>        <!-- without the middle -->
+<gen type="number" value="0..9" include="100"/>             <!-- 0–9 and also 100 -->
+```
+
+`./run demo.tdc`
+
+```
+value="0..9" exclude="3"               → 7
+value="1000..9999" exclude="1234,5678" → 7931
+value="0..100" exclude="40..60"        → 82
+value="0..9" include="100"             → 8
+```
+
+Two things worth knowing:
+
+- **The pick is genuinely uniform** over everything that remains. `value="0..9"
+exclude="3"` gives each of the nine surviving numbers exactly a 1-in-9 chance —
+  unlike a range list, where ranges, not numbers, are equally weighted.
+- **A set has no decimals.** `include`/`exclude` build a set of whole numbers and pick one
+  uniformly, so `decimals=` has nothing to round. The two together are refused (`TDC255`) —
+  before that the engine dropped `decimals` and emitted integers without a word.
+- **`exclude` has the last word.** The final set is `(base ∪ include) − exclude`,
+  so a number added by `include` and removed by `exclude` is gone. If nothing is
+  left after the modifiers, that's error `TDC087`.
+
+These modifiers need a **range** `value`; they don't apply to the digit-string
+(`length`-only) mode.
+
+## Gotchas, in one place
+
+- Ranges use `..`, never `-` (a single `-` is a minus sign).
+- Leading-zero width is preserved: `value="0000..9999"` → `"0034"`.
+- Digit-string mode returns **text**, not a number — safe for huge ids.
+- In a range list, ranges are uniform, not the individual numbers — use `exclude`
+  for a uniform pick with holes.
+
+## See also
+
+- [`length`](../reference/attributes.md) and [`first_zero`](../reference/attributes.md) in the attribute reference.
+- **[Text](text.md)** — the same exact-`percent` machinery, for lists.

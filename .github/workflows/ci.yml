@@ -1,0 +1,69 @@
+# The skill's commands on every OS and shell an agent may use, and the MCP server
+# through a real MCP client.
+name: ci
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  mcp:
+    strategy:
+      fail-fast: false
+      matrix: { os: [ubuntu-latest, windows-latest] }
+    runs-on: ${{ matrix.os }}
+    defaults: { run: { working-directory: mcp } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm ci
+      - run: node test/smoke.mjs
+
+  commands:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, shell: bash }
+          - { os: macos-latest, shell: bash }
+          - { os: windows-latest, shell: pwsh }
+          - { os: windows-latest, shell: powershell }
+          - { os: windows-latest, shell: cmd }
+    runs-on: ${{ matrix.os }}
+    name: ${{ matrix.os }} / ${{ matrix.shell }}
+    defaults:
+      run:
+        shell: ${{ matrix.shell }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - name: a fresh project with the skill in it
+        shell: bash
+        run: |
+          mkdir -p ../work/.claude/skills
+          cp -R skills/tdcv2 ../work/.claude/skills/tdcv2
+          cp mcp/test/fixtures/orders.tdc ../work/
+      - name: npx tdcv2
+        working-directory: ../work
+        run: npx -y tdcv2 --version
+      - name: find-packs
+        working-directory: ../work
+        run: node .claude/skills/tdcv2/scripts/find-packs.mjs last name > find.txt
+      - name: check
+        working-directory: ../work
+        run: npx -y tdcv2 check --brief orders.tdc
+      - name: generate
+        working-directory: ../work
+        run: npx -y tdcv2 orders.tdc -o orders.csv
+      - name: peek
+        working-directory: ../work
+        run: node .claude/skills/tdcv2/scripts/peek.mjs orders.csv > peek.txt
+      - name: judge
+        shell: bash
+        working-directory: ../work
+        run: |
+          node "$GITHUB_WORKSPACE/test/expect.mjs" contains find.txt person.lastName
+          node "$GITHUB_WORKSPACE/test/expect.mjs" contains peek.txt "shipped 700, pending 200, cancelled 100"

@@ -1,0 +1,387 @@
+# Installation
+
+TDC targets five ecosystems — **npm** (Node.js / TypeScript), **pip**
+(Python), **Maven** (Java), **NuGet** (.NET) and **Cargo** (Rust) — all producing
+byte-for-byte identical output from the same config, seed, version and output mode
+(see [Determinism & proportions](../core-concepts/determinism.md)).
+
+**All five implementations are complete.** They share one grammar, one set of
+diagnostic codes, and a suite of fixtures that hold them to producing the same
+bytes — a gigabyte of output from the same config comes out identical in each.
+Each one also carries the same command line, so nothing needs another
+language's toolchain to run a config.
+
+All five are published: **0.3.2** on npm, PyPI, NuGet and crates.io, and
+**0.3.2** on Maven Central — usually the same number, occasionally one
+behind, because Central caps how many releases it accepts from a project each month
+(see [the Java page](../bindings/java.md)). Equal version numbers are not a
+coincidence: where they match, `tdcv2 0.3.2` from any of them answers a
+config the same way, down to the byte.
+
+Pick your ecosystem. To try TDC without committing to a language, use the npm
+tab: it includes a wrapper script that runs a config without any code of your
+own.
+
+#### Node.js — npm
+
+**Requirements:** Node.js **20.0.0** or newer.
+
+```bash
+npm install -D tdcv2
+npx tdcv2 init
+```
+
+That is the whole installation. `init` writes a config and a `tdcv2-examples/`
+folder holding three worked examples, and prints the command that runs the first
+one. The `common`, `en` and USA data packs come with the package, so they run
+without downloading anything.
+
+`npx` is not decoration here: `npm install -D` puts the command in
+`node_modules/.bin`, not on your PATH. The other four ecosystems below install it
+as a real command, so their examples say plain `tdcv2`.
+
+To work on the engine itself instead, run it from a checkout of the repository.
+Build it once:
+
+```bash
+npm --workspace typescript run build
+```
+
+Then run any config by pointing Node at the built CLI:
+
+```bash
+node typescript/dist/cli/main.js tdcv2-examples/01-starter.tdc
+```
+
+There's also a one-command wrapper at the repository root, so you don't have to
+remember that path:
+
+```bash
+./run demo.tdc        # run any file you point it at
+```
+
+`./run` is the fastest way to see output: point it at a file and read the
+result in the terminal. Under the hood it calls the same CLI. The
+full option list — `--seed`, `--count`, `--output`, `--locale`, and the rest —
+lives in the [CLI reference](../reference/cli.md).
+
+#### Python — pip
+
+**Requirements:** Python **3.10** or newer.
+
+One command gets you both the library and the `tdcv2` command:
+
+```bash
+pip install tdcv2
+tdcv2 init
+```
+
+That is the whole setup. A starter set of data packs travels inside the wheel,
+so the example above runs with nothing else installed.
+
+The DSL and behavior are identical to the npm version: the same `.tdc` config,
+run with the same `seed`, produces the same bytes. See
+[Language bindings — Python](../bindings/python.md) for the API.
+
+#### Java — Maven
+
+**Requirements:** Java **17** or newer.
+
+The library is one dependency:
+
+```xml
+<dependency>
+  <groupId>io.github.nickliapin</groupId>
+  <artifactId>tdcv2</artifactId>
+  <version>0.3.2</version>
+</dependency>
+```
+
+Gradle, in `build.gradle.kts`:
+
+```kotlin
+implementation("io.github.nickliapin:tdcv2:0.3.2")
+```
+
+A starter set of data packs travels inside the jar, so the example above runs
+with nothing else installed.
+
+**The command line is a separate artifact.** Maven
+has no equivalent of npm's `bin` — adding a library to a project does not put a
+command on your PATH — so the CLI ships as one self-contained jar that needs
+nothing but a JDK. It sits under the same coordinates as the library, told apart
+by the `cli` classifier:
+
+```bash
+curl -LO https://repo1.maven.org/maven2/io/github/nickliapin/tdcv2/0.3.2/tdcv2-0.3.2-cli.jar
+java -jar tdcv2-0.3.2-cli.jar init
+```
+
+Worth an alias: `alias tdcv2='java -jar /path/to/tdcv2-cli.jar'`, after which
+every command on these pages reads the same as it does everywhere else.
+
+The DSL and behavior are identical to the npm version. See
+[Language bindings — Java](../bindings/java.md) for the API.
+
+#### .NET — NuGet
+
+**Requirements:** .NET **6.0** or newer.
+
+The library is one package:
+
+```bash
+dotnet add package Tdcv2
+```
+
+A starter set of data packs is embedded in the assembly, so it works with
+nothing else installed.
+
+**The command line is its own package.** NuGet has no equivalent of npm's `bin`,
+so the CLI is a .NET tool package of its own — install it globally and the command
+is on your PATH:
+
+```bash
+dotnet tool install --global Tdcv2.Cli
+tdcv2 init
+```
+
+The DSL and behavior are identical to the npm version.
+
+#### Rust — Cargo
+
+**Requirements:** Rust **1.74** or newer.
+
+One crate carries both the library and the command line:
+
+```bash
+cargo add tdcv2      # as a dependency
+cargo install tdcv2  # as a command
+tdcv2 init
+```
+
+The starter data packs are compiled into the binary, so an installed crate
+works with nothing else on disk.
+
+Or from a checkout:
+
+```bash
+cd rust && cargo build --release
+./target/release/tdcv2 init
+```
+
+The crate takes **no dependencies**, so the build needs nothing but a Rust
+toolchain. HTTPS is the one exception: `tdcv2 pack` shells out to `curl`, and
+says how to install it if there is none.
+
+The DSL and behavior are identical to the npm version.
+
+## Verify it works
+
+`init` already left you something to run — `tdcv2-examples/01-starter.tdc`, and
+two more beside it. **Those files exist only after you run `init`**; nothing
+creates them at install time, and they are yours to edit afterwards.
+
+Running the first one is the check that the install works:
+
+```bash
+tdcv2 tdcv2-examples/01-starter.tdc
+```
+
+The rest of this section builds the same thing by hand, so you can see where
+every line comes from. Create a file called `demo.tdc`. It declares two columns and one line of output. The name
+is picked from a list with [`type="text"`](../generators/text.md), and the age is drawn
+from a range with [`type="number"`](../generators/number.md):
+
+```xml
+<tdc>
+    <env count="3" seed="demo">
+        <sequence name="Name">
+            <gen type="text" value="Alice,Bob,Carol,David,Emma"/>
+        </sequence>
+        <sequence name="Age">
+            <gen type="number" value="18..65"/>
+        </sequence>
+    </env>
+
+    <block>
+        <line>
+            <data>${{Name}}, age ${{Age}}</data>
+        </line>
+    </block>
+</tdc>
+```
+
+Run it with whichever command your install gave you. Three ecosystems put
+`tdcv2` on your PATH from the same package that carries the library; Maven and
+NuGet have no equivalent of npm's `bin`, so for those the command line is a
+second artefact:
+
+| Installed with | The command                                                                                                |
+| :------------- | :--------------------------------------------------------------------------------------------------------- |
+| Node.js        | `npx tdcv2 tdcv2-examples/01-starter.tdc`                                                                  |
+| Python         | `tdcv2 tdcv2-examples/01-starter.tdc`                                                                      |
+| Rust           | `tdcv2 tdcv2-examples/01-starter.tdc`, after `cargo install tdcv2`                                         |
+| C#             | `tdcv2 demo.tdc`, after `dotnet tool install --global Tdcv2.Cli`                                           |
+| Java           | `java -jar tdcv2-0.3.2-cli.jar tdcv2-examples/01-starter.tdc` — the `cli` classifier of the library's own coordinates            |
+
+From the repository root, `./run demo.tdc` is the shortest of them all.
+
+`tdcv2 demo.tdc`
+
+```
+Emma, age 59
+David, age 18
+Carol, age 53
+```
+
+> [!IMPORTANT]
+> The exact names and numbers are illustrative — they can differ between core
+> versions. What matters is that `seed="demo"` makes the run reproducible: the same
+> config with the same seed gives you the same output every time.
+
+If you get three lines of `Name, age N`, the install works. Run it a second time
+to confirm — the three rows come back identical. Then override the row count and
+the seed from the command line, without touching the file:
+
+```bash
+tdcv2 demo.tdc --count 20 --seed alt
+```
+
+## Or skip the config entirely
+
+A config is how you describe a whole dataset. But the same install also answers a single
+value, the way a faker does — no file, no `<env>`, one call:
+
+#### TypeScript
+
+```typescript
+import { tdc } from 'tdcv2';
+
+tdc.person.lastName(); // Jones
+tdc.person.male.firstName(); // Robert
+tdc.common.finance.iban(); // DE62299399441396459682
+tdc.country.usa.docs.ssn(); // 699209702 — with its real check digits
+tdc.lang.ru.person.lastName(); // after `tdcv2 pack add ru`
+```
+
+#### Python
+
+```python
+from tdcv2 import tdc
+
+tdc.person.lastName()           # Jones
+tdc.person.male.firstName()     # Robert
+tdc.common.finance.iban()       # DE62299399441396459682
+tdc.country.usa.docs.ssn()      # 699209702 — with its real check digits
+tdc.lang.ru.person.lastName()   # after `tdcv2 pack add ru`
+```
+
+#### Java
+
+```java
+import io.github.nickliapin.tdc.quick.Quick;
+
+Quick tdc = Quick.tdc();
+
+tdc.get("person.lastName");        // Jones
+tdc.get("person.male.firstName");  // Robert
+tdc.get("common.finance.iban");    // DE62299399441396459682
+tdc.get("usa.docs.ssn");           // 699209702 — with its real check digits
+tdc.get("ru.person.lastName");     // after `java -jar tdcv2-cli.jar pack add ru`
+```
+
+#### C#
+
+```csharp
+using Tdcv2.Quick;
+
+dynamic tdc = Quick.Tdc;
+
+tdc.person.lastName();          // Jones
+tdc.person.male.firstName();    // Robert
+tdc.common.finance.iban();      // DE62299399441396459682
+tdc.country.usa.docs.ssn();     // 699209702 — with its real check digits
+tdc.lang.ru.person.lastName();  // after `tdcv2 pack add ru`
+```
+
+#### Rust
+
+```rust
+use tdcv2::quick::Quick;
+
+let mut tdc = Quick::new();
+
+tdc.get("person.lastName")?;        // Jones
+tdc.get("person.male.firstName")?;  // Robert
+tdc.get("common.finance.iban")?;    // DE62299399441396459682
+tdc.get("usa.docs.ssn")?;           // 699209702 — with its real check digits
+tdc.get("ru.person.lastName")?;     // after `tdcv2 pack add ru`
+```
+
+Both routes read the same data packs, so the surname in a one-line call and the surname
+in a million-row config come from one list. Which one you want depends on whether the
+values have to agree with each other: a config is what ties a city to its country and
+holds a share to exactly 30%, and a single call ties nothing to anything.
+
+[Quick API](quick-api.md) — the next page — has the whole surface — `.many(n)`,
+`seed()`, `locale()`, and how to reach a specific pack in each language.
+
+> [!NOTE]
+> **The values here come from a seed**
+>
+> Each of the five is random per process on its own, the way a faker is. The values in
+> the comments are what the seed `demo` draws, so `tdc.seed('demo')` — `Quick.seeded("demo")`
+> in Java and Rust — reproduces them exactly.
+
+## Install data packs (optional)
+
+Names, cities, states, companies, and other value lists ship as **data packs**,
+separately from the engine, so updating the library never overwrites your data.
+A sensible default set (the top 1000 first names, for instance) is bundled, so
+the example above runs without downloading anything. Larger and more specialized
+sets are fetched on demand.
+
+Setting this up takes two commands, `init` once and `pack add` for whatever you need.
+`pack list` is there to show you the options:
+
+```bash
+tdcv2 init            # choose where packs live and the default locale
+tdcv2 pack list       # see what the registry offers
+tdcv2 pack add en usa # download and wire up the packs you want
+```
+
+> [!NOTE]
+> On an npm install every one of those is `npx tdcv2 …` — the command lives in
+> `node_modules/.bin`. pip, cargo and `dotnet tool install -g` put `tdcv2` on your
+> PATH, so there the line above is exactly what you type.
+
+`tdcv2 pack list` prints the catalog and marks what's already installed:
+
+`tdcv2 pack list`
+
+```
+Available data packs:
+
+common ✓ installed Common (locale-agnostic) (46.5 KB)
+Generators bound to neither a language nor a country: uuid,
+hashes, ISBN/ISSN, GTIN/UPC/EAN, card PANs, MRZ, IPv4/IPv6/MAC,
+semver, and more.
+
+…
+
+usa ✓ installed Usa (country) (18.8 KB)
+Data specific to the USA regardless of the language it is
+written in: SSN/ITIN/EIN, ZIP codes, states, street names, ABA
+routing numbers, phone format, license plates.
+```
+
+Packs **compose** along independent axes — language, country, and a
+locale-agnostic `common` — so US data in English is `common` + `en` + `usa`. The
+full workflow (the config file, pack shadowing, removing packs) is covered in
+[Installing data packs](../data-packs/installing-packs.md).
+
+## What's next
+
+- **[Your first dataset](first-data.md)** — write, run, and extend a config in three minutes.
+- **[CLI reference](../reference/cli.md)** — every flag: `--seed`, `--count`, `--output`, `--locale`, `--data-path`, and exit codes.
+- **[Installing data packs](../data-packs/installing-packs.md)** — the full `init` / `pack` workflow.
