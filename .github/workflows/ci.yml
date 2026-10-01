@@ -15,8 +15,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     defaults: { run: { working-directory: mcp } }
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with: { node-version: 20 }
       - run: npm ci
       - run: node test/smoke.mjs
@@ -37,8 +37,8 @@ jobs:
       run:
         shell: ${{ matrix.shell }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with: { node-version: 20 }
       - name: a fresh project with the skill in it
         shell: bash
@@ -46,18 +46,18 @@ jobs:
           mkdir -p ../work/.claude/skills
           cp -R skills/tdcv2 ../work/.claude/skills/tdcv2
           cp mcp/test/fixtures/orders.tdc ../work/
-      - name: npx tdcv2
+      - name: npx tdcv2@0.3.3
         working-directory: ../work
-        run: npx -y tdcv2 --version
+        run: npx -y tdcv2@0.3.3 --version
       - name: find-packs
         working-directory: ../work
         run: node .claude/skills/tdcv2/scripts/find-packs.mjs last name > find.txt
       - name: check
         working-directory: ../work
-        run: npx -y tdcv2 check --brief orders.tdc
+        run: npx -y tdcv2@0.3.3 check --brief orders.tdc
       - name: generate
         working-directory: ../work
-        run: npx -y tdcv2 orders.tdc -o orders.csv
+        run: npx -y tdcv2@0.3.3 orders.tdc -o orders.csv
       - name: peek
         working-directory: ../work
         run: node .claude/skills/tdcv2/scripts/peek.mjs orders.csv > peek.txt

@@ -1,17 +1,17 @@
 {
   "name": "tdcv2-mcp",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "lockfileVersion": 3,
   "requires": true,
   "packages": {
     "": {
       "name": "tdcv2-mcp",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "license": "MIT",
       "dependencies": {
-        "@modelcontextprotocol/sdk": "^1.30.1",
-        "tdcv2": "^0.3.3",
-        "zod": "^4.6.5"
+        "@modelcontextprotocol/sdk": "1.30.1",
+        "tdcv2": "0.3.3",
+        "zod": "4.6.5"
       },
       "bin": {
         "tdcv2-mcp": "src/cli.mjs"

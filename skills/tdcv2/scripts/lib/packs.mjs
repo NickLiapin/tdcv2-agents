@@ -136,11 +136,11 @@ export function formatPackSearch(r) {
     } else {
       out.push(`This tdcv2 (${r.engine}) lists only its bundled packs (${r.installed.join(', ')}), not ones added with \`pack add\`.`);
       out.push(`If "${r.locale}" is already added: write the path you expect, set local="${r.locale}", and run`);
-      out.push('`npx -y tdcv2 check --brief` — paths differ between locales, and TDC217 names where it exists.');
+      out.push('`npx -y tdcv2@0.3.3 check --brief` — paths differ between locales, and TDC217 names where it exists.');
       out.push('If not added yet:');
     }
-    out.push('Install it:  npx -y tdcv2 init --yes   (once per project, if tdcv2.config.json is missing)');
-    out.push(`             npx -y tdcv2 pack add ${r.locale}`);
+    out.push('Install it:  npx -y tdcv2@0.3.3 init --yes   (once per project, if tdcv2.config.json is missing)');
+    out.push(`             npx -y tdcv2@0.3.3 pack add ${r.locale}`);
     if (r.seesInstalled) out.push('Then search again.');
     if (r.matches.length) out.push('', 'Locale-free packs that match meanwhile:');
   }

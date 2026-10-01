@@ -27,8 +27,8 @@ own.
 **Requirements:** Node.js **20.0.0** or newer.
 
 ```bash
-npm install -D tdcv2
-npx tdcv2 init
+npm install -D tdcv2@0.3.3
+npx tdcv2@0.3.3 init
 ```
 
 That is the whole installation. `init` writes a config and a `tdcv2-examples/`
@@ -72,7 +72,7 @@ lives in the [CLI reference](../reference/cli.md).
 One command gets you both the library and the `tdcv2` command:
 
 ```bash
-pip install tdcv2
+pip install tdcv2==0.3.3
 tdcv2 init
 ```
 
@@ -130,7 +130,7 @@ The DSL and behavior are identical to the npm version. See
 The library is one package:
 
 ```bash
-dotnet add package Tdcv2
+dotnet add package Tdcv2 --version 0.3.3
 ```
 
 A starter set of data packs is embedded in the assembly, so it works with
@@ -154,8 +154,8 @@ The DSL and behavior are identical to the npm version.
 One crate carries both the library and the command line:
 
 ```bash
-cargo add tdcv2      # as a dependency
-cargo install tdcv2  # as a command
+cargo add tdcv2@0.3.3      # as a dependency
+cargo install tdcv2@0.3.3  # as a command
 tdcv2 init
 ```
 
@@ -218,9 +218,9 @@ second artefact:
 
 | Installed with | The command                                                                                                |
 | :------------- | :--------------------------------------------------------------------------------------------------------- |
-| Node.js        | `npx tdcv2 tdcv2-examples/01-starter.tdc`                                                                  |
+| Node.js        | `npx tdcv2@0.3.3 tdcv2-examples/01-starter.tdc`                                                                  |
 | Python         | `tdcv2 tdcv2-examples/01-starter.tdc`                                                                      |
-| Rust           | `tdcv2 tdcv2-examples/01-starter.tdc`, after `cargo install tdcv2`                                         |
+| Rust           | `tdcv2 tdcv2-examples/01-starter.tdc`, after `cargo install tdcv2@0.3.3`                                         |
 | C#             | `tdcv2 demo.tdc`, after `dotnet tool install --global Tdcv2.Cli`                                           |
 | Java           | `java -jar tdcv2-0.3.3-cli.jar tdcv2-examples/01-starter.tdc` — the `cli` classifier of the library's own coordinates            |
 
@@ -351,7 +351,7 @@ tdcv2 pack add en usa # download and wire up the packs you want
 ```
 
 > [!NOTE]
-> On an npm install every one of those is `npx tdcv2 …` — the command lives in
+> On an npm install every one of those is `npx tdcv2@0.3.3 …` — the command lives in
 > `node_modules/.bin`. pip, cargo and `dotnet tool install -g` put `tdcv2` on your
 > PATH, so there the line above is exactly what you type.
 

@@ -60,8 +60,8 @@ node typescript/dist/cli/main.js demo.tdc
 Once the package is published, you'll be able to run it from anywhere:
 
 ```bash
-npm install -D tdcv2
-npx tdcv2 demo.tdc
+npm install -D tdcv2@0.3.3
+npx tdcv2@0.3.3 demo.tdc
 ```
 
 If the engine hasn't been built yet (no `typescript/dist` folder), build it once.

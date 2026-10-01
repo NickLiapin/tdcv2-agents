@@ -7,7 +7,7 @@ anywhere — the server only runs the engine locally.
 
 It is the same knowledge as the TDCv2 skill, as tools — for clients without a terminal, or
 that prefer tools to skills. The skill itself ships in this package:
-`npx -y tdcv2-mcp install-skill` puts it where your agent looks for skills (`--help` for
+`npx -y tdcv2-mcp@0.1.2 install-skill` puts it where your agent looks for skills (`--help` for
 the options).
 
 
@@ -16,13 +16,13 @@ the options).
 Claude Code:
 
 ```sh
-claude mcp add tdcv2 -- npx -y tdcv2-mcp
+claude mcp add tdcv2 -- npx -y tdcv2-mcp@0.1.2
 ```
 
 Claude Desktop, Cursor and other clients — the usual `mcpServers` entry:
 
 ```json
-{ "mcpServers": { "tdcv2": { "command": "npx", "args": ["-y", "tdcv2-mcp"] } } }
+{ "mcpServers": { "tdcv2": { "command": "npx", "args": ["-y", "tdcv2-mcp@0.1.2"] } } }
 ```
 
 Windows: use `"command": "npx.cmd"` if the client cannot start `npx`.
@@ -46,7 +46,7 @@ Also a prompt, `tdcv2_guide`, and resources `tdcv2://guide`, `tdcv2://traps`,
 
 ## Which engine
 
-The project's own `tdcv2` if it has one (`npm i -D tdcv2`), then one on `PATH`, else the
+The project's own `tdcv2` if it has one (`npm i -D tdcv2@0.3.3`), then one on `PATH`, else the
 server's own dependency. `TDCV2_ENGINE=<package folder>` pins one.
 
 ## Checked

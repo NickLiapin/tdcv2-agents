@@ -13,8 +13,8 @@ One crate, library and command line together.
 >
 >
 > ```bash
-> cargo add tdcv2      # as a dependency
-> cargo install tdcv2  # as a command
+> cargo add tdcv2@0.3.3      # as a dependency
+> cargo install tdcv2@0.3.3  # as a command
 > ```
 >
 > The crate takes **no dependencies**, and the starter data packs are compiled into the

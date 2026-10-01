@@ -449,7 +449,7 @@ generators) and the file is big enough, TDC uses `cores − 1` (7 on an 8-core b
 otherwise it quietly runs on one core:
 
 ```bash
-npx tdcv2 customers.tdc -o customers.csv
+npx tdcv2@0.3.3 customers.tdc -o customers.csv
 ```
 
 The result is **byte-identical regardless of core count** (same seed): each core computes
@@ -509,7 +509,7 @@ Set it by hand with [`--jobs N`](../reference/cli.md) if you want (`--jobs 1` fo
 single-threaded); the output is identical either way:
 
 ```bash
-npx tdcv2 customers.tdc --jobs 8 -o customers.csv
+npx tdcv2@0.3.3 customers.tdc --jobs 8 -o customers.csv
 ```
 
 Sometimes parallelism does **not** kick in, and the rule is narrower than it looks. Both

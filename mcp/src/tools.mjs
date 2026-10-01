@@ -32,7 +32,7 @@ export async function engine() {
     const found = pinned
       ? await lib.engine.loadEngine({ cwd: pinned, path: '', fallback: pinned })
       : await lib.engine.loadEngine({ cwd: ROOT, fallback: OWN_ENGINE });
-    if (!found) throw new Error('no tdcv2 engine could be loaded — install it in the project: npm i -D tdcv2');
+    if (!found) throw new Error('no tdcv2 engine could be loaded — install it in the project: npm i -D tdcv2@0.3.3');
     engines.set(ROOT, found);
   }
   return engines.get(ROOT);
@@ -188,7 +188,7 @@ export async function tdcFindPacks({ query, locale, limit = 15 }) {
   const { mod } = await engine();
   const r = lib.packs.searchPacks(mod, { words: [query], locale, limit: Math.min(limit, 30) });
   const text = lib.packs.formatPackSearch(r).join('\n')
-    .replaceAll('npx -y tdcv2 check --brief', 'tdc_check'); // this client checks through the tool
+    .replaceAll('npx -y tdcv2@0.3.3 check --brief', 'tdc_check'); // this client checks through the tool
   return { text, data: r };
 }
 

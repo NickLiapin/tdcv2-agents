@@ -21,11 +21,11 @@ the config below, each of the five programs on this page prints the same line:
 
 | language | install | load | rows | one value | column that does not apply¹ |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| TypeScript / JS | `npm i -D tdcv2` | `new TDC({ configFile })` | `toArray()` → array | `row.Name` | `undefined` |
-| Python ≥ 3.10 | `pip install tdcv2` | `TDC(config_file=…)` | `to_array()` → list | `row["Name"]` | `None` |
-| Java | `io.github.nickliapin:tdcv2` | `new TDC(path)` | `toArray()` → `List<TDC.Row>` | `row.get("Name")` | `null` |
-| C# | `dotnet add package Tdcv2` | `new Tdc(path)` | `ToArray()` → `IReadOnlyList<Tdc.Row>` | `row["Name"]` | `null` |
-| Rust | `cargo add tdcv2` | `Tdc::from_file(path)?` | `to_array()` → `Vec<Row>` | `row.get("Name")` → `Option` | `None` |
+| TypeScript / JS | `npm i -D tdcv2@0.3.3` | `new TDC({ configFile })` | `toArray()` → array | `row.Name` | `undefined` |
+| Python ≥ 3.10 | `pip install tdcv2==0.3.3` | `TDC(config_file=…)` | `to_array()` → list | `row["Name"]` | `None` |
+| Java | `io.github.nickliapin:tdcv2:0.3.3` | `new TDC(path)` | `toArray()` → `List<TDC.Row>` | `row.get("Name")` | `null` |
+| C# | `dotnet add package Tdcv2 --version 0.3.3` | `new Tdc(path)` | `ToArray()` → `IReadOnlyList<Tdc.Row>` | `row["Name"]` | `null` |
+| Rust | `cargo add tdcv2@0.3.3` | `Tdc::from_file(path)?` | `to_array()` → `Vec<Row>` | `row.get("Name")` → `Option` | `None` |
 
 ¹ A column under `parent=` on a row it does not apply to — here `Name` on the `F` rows.
 

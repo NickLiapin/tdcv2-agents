@@ -9,7 +9,7 @@ TDCv2 is a deterministic test-data engine. You write a small `.tdc` config; the 
 generates the rows **locally**. Same config, same `seed` → the same file, byte for byte.
 The config is the deliverable — hand it over with the data.
 
-This skill is instructions only; the engine runs in the terminal — `npx -y tdcv2 …`
+This skill is instructions only; the engine runs in the terminal — `npx -y tdcv2@0.3.3 …`
 (Node ≥ 20). Invoking the skill again runs nothing.
 `<skill>` below means this skill's own folder.
 
@@ -20,7 +20,7 @@ refusing `npx` ("running scripts is disabled") → `npx.cmd`, same arguments.
 
 ## The engine makes the rows — not you
 
-The delivered file is exactly what `npx -y tdcv2 <name>.tdc -o <file>` wrote. Nothing
+The delivered file is exactly what `npx -y tdcv2@0.3.3 <name>.tdc -o <file>` wrote. Nothing
 else produces or touches it:
 
 - no script (JS, Python, shell) that imports `tdcv2` and picks values itself;
@@ -43,20 +43,20 @@ post-process the output", "easier to make this column in Python".
   the config:
 
   ```js
-  // TypeScript / JS — npm i -D tdcv2
+  // TypeScript / JS — npm i -D tdcv2@0.3.3
   import { TDC } from "tdcv2";
   const users = new TDC({ configFile: "test/users.tdc" }).toArray(); // objects, values are strings
   ```
 
   ```python
-  # Python — pip install tdcv2 (into the project's environment)
+  # Python — pip install tdcv2==0.3.3 (into the project's environment)
   from tdcv2 import TDC
   users = TDC(config_file="tests/users.tdc").to_array()
   ```
 
   Java, C#, Rust, and the traps of each: `<skill>/from-code.md`.
 
-  **Red flag:** `npx -y tdcv2 users.tdc -o users.json` (or `.csv`) so that a test can
+  **Red flag:** `npx -y tdcv2@0.3.3 users.tdc -o users.json` (or `.csv`) so that a test can
   read it — that is the fixture to avoid; the test calls the loader above. If adding the
   library to the project fails, say so before falling back to a generated file.
 - **A person or another tool** wants a file — steps 1–7.
@@ -68,10 +68,10 @@ post-process the output", "easier to make this column in Python".
    `node <skill>/scripts/find-packs.mjs <words>` (`last name`, `email`). Never guess a
    path; the script lists the ones installed here.
 3. **Write `<name>.tdc`** next to the output file, with `count` and `seed` inside `<env>`.
-4. **Check:** `npx -y tdcv2 check --brief <name>.tdc`. Fix every line it prints — a
+4. **Check:** `npx -y tdcv2@0.3.3 check --brief <name>.tdc`. Fix every line it prints — a
    `help: did you mean …` part names the right spelling.
-5. **Look at a few rows:** `npx -y tdcv2 <name>.tdc --count 5`.
-6. **Generate** (only when the rows go to a file): `npx -y tdcv2 <name>.tdc -o <file>` — no `--count`/`--seed` flags, so the
+5. **Look at a few rows:** `npx -y tdcv2@0.3.3 <name>.tdc --count 5`.
+6. **Generate** (only when the rows go to a file): `npx -y tdcv2@0.3.3 <name>.tdc -o <file>` — no `--count`/`--seed` flags, so the
    config alone reproduces the file.
 7. **Prove it from the file, then report.** `node <skill>/scripts/peek.mjs <file>` —
    row count, and per column the distinct values, the split, the range; add
@@ -179,14 +179,14 @@ More traps, each run on the engine — the silent ones first: `<skill>/traps.md`
 ## Other languages
 
 `local="fr"` needs the French pack. npm ships English, `common.*` and `usa.*`; the rest:
-`npx -y tdcv2 init --yes` (once per project), then `npx -y tdcv2 pack add <locale>`.
+`npx -y tdcv2@0.3.3 init --yes` (once per project), then `npx -y tdcv2@0.3.3 pack add <locale>`.
 `find-packs.mjs … --locale fr` says whether it is there.
 
 ## Reference
 
 `reference/INDEX.md` lists every page of the engine's docs, one line each — open the page
 instead of guessing (codes: `reference/reference/errors.md`). The pages are for the
-engine version INDEX.md names. If `npx -y tdcv2 --version` prints another, or a page
+engine version INDEX.md names. If the project uses another engine version, or a page
 disagrees with `check`, read that version's page:
 `https://raw.githubusercontent.com/NickLiapin/tdcv2/v<version>/docs/<path>`. `check` beats
 any page.

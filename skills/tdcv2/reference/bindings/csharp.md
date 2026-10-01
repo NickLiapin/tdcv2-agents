@@ -13,7 +13,7 @@ Two packages: the library, and the command line as a `dotnet tool`.
 >
 >
 > ```bash
-> dotnet add package Tdcv2
+> dotnet add package Tdcv2 --version 0.3.3
 > ```
 >
 > The starter data packs are embedded in the assembly, so it works with nothing else

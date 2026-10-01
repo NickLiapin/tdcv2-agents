@@ -35,9 +35,9 @@ tdcv2: no pack store configured — run `tdcv2 init` first
 >
 > | Your language | Getting the command                                    | Running it                        |
 > | :------------ | :----------------------------------------------------- | :-------------------------------- |
-> | Node.js       | nothing — `npx` fetches it                             | `npx tdcv2 pack add ru`           |
-> | Python        | `pip install tdcv2`                                    | `tdcv2 pack add ru`               |
-> | Rust          | `cargo install tdcv2`                                  | `tdcv2 pack add ru`               |
+> | Node.js       | nothing — `npx` fetches it                             | `npx tdcv2@0.3.3 pack add ru`           |
+> | Python        | `pip install tdcv2==0.3.3`                                    | `tdcv2 pack add ru`               |
+> | Rust          | `cargo install tdcv2@0.3.3`                                  | `tdcv2 pack add ru`               |
 > | C#            | `dotnet tool install --global Tdcv2.Cli`               | `tdcv2 pack add ru`               |
 > | Java          | download `tdcv2-0.3.3-cli.jar` from Maven Central      | `java -jar tdcv2-0.3.3-cli.jar pack add ru` |
 >

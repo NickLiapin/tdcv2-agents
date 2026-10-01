@@ -18,12 +18,11 @@ files they generate anywhere.
 
 ## Network access, all of it
 
-- **Starting the server.** The plugin runs `npx -y tdcv2-mcp@<the plugin's version>`
+- **Starting the server.** The plugin runs `npx -y tdcv2-mcp@0.1.2`, its own version
   (`scripts/mcp-launch.mjs`). The first start downloads that exact version and its
   dependencies — the TDCv2 engine among them — from the npm registry; npm caches them.
-- **Running the engine.** When the project has no TDCv2 engine of its own, the agent and
-  the skill's scripts run it with `npx -y tdcv2 …`, which downloads it from the npm
-  registry the same way.
+- **Running the engine.** The agent and the skill's scripts run the engine with
+  `npx -y tdcv2@0.3.3 …` — one exact version, which npm downloads the first time the same way.
 - **Engine docs of another version.** The skill carries the engine's documentation for
   one version. If your engine is a different version, the agent may read that version's
   page from `raw.githubusercontent.com` (public GitHub). That is a plain download of a

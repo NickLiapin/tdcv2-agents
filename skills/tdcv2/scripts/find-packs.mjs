@@ -38,14 +38,14 @@ function viaNpx() {
     console.error('find-packs: could not load the tdcv2 engine, even under npx.');
     process.exit(1);
   }
-  const args = ['-y', '-p', 'tdcv2', '--', 'node', process.argv[1], ...process.argv.slice(2), '--from-npx'];
+  const args = ['-y', '-p', 'tdcv2@0.3.3', '--', 'node', process.argv[1], ...process.argv.slice(2), '--from-npx'];
   // On Windows npx is npx.cmd, which Node starts only through a shell.
   const r = process.platform === 'win32'
     ? spawnSync(['npx', ...args].map(winQuote).join(' '), { stdio: 'inherit', shell: true })
     : spawnSync('npx', args, { stdio: 'inherit' });
   if (r.error || r.status === null) {
     console.error(`find-packs: no tdcv2 engine here, and npx could not start (${r.error?.code ?? r.signal ?? 'unknown'}).`);
-    console.error('Install Node.js with npm (https://nodejs.org), or add the engine to the project: npm i -D tdcv2');
+    console.error('Install Node.js with npm (https://nodejs.org), or add the engine to the project: npm i -D tdcv2@0.3.3');
     process.exit(1);
   }
   process.exit(r.status);

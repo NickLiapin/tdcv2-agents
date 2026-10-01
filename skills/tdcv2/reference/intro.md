@@ -6,8 +6,8 @@
 > **TDC** is the language. It is what a `.tdc` file contains, what the `TDC001`-style
 > codes in error messages refer to, and what this documentation teaches.
 >
-> **`tdcv2`** is the package and the command that run it — `npm install tdcv2`,
-> `pip install tdcv2`, `npx tdcv2 …`. The name carries a `v2` for a dull reason:
+> **`tdcv2`** is the package and the command that run it — `npm install tdcv2@0.3.3`,
+> `pip install tdcv2==0.3.3`, `npx tdcv2@0.3.3 …`. The name carries a `v2` for a dull reason:
 > `tdc` was already taken on npm and PyPI by unrelated packages. It is not the
 > version of the language, and it does not move when the version does — `tdcv2`
 > will still be the package name at 1.0.
@@ -324,11 +324,11 @@ registry produces the same bytes for the same config and seed.
 
 | Implementation                            | Registry      | Install                      | Version |
 | :---------------------------------------- | :------------ | :--------------------------- | :------ |
-| **[TypeScript](bindings/typescript.md)** | npm           | `npm i tdcv2`                | 0.3.3   |
-| **[Python](bindings/python.md)**         | PyPI          | `pip install tdcv2`          | 0.3.3   |
-| **[Rust](bindings/rust.md)**             | crates.io     | `cargo add tdcv2`            | 0.3.3   |
-| **[C#](bindings/csharp.md)**             | NuGet         | `dotnet add package Tdcv2`   | 0.3.3   |
-| **[Java](bindings/java.md)**             | Maven Central | `io.github.nickliapin:tdcv2` | 0.3.3   |
+| **[TypeScript](bindings/typescript.md)** | npm           | `npm i tdcv2@0.3.3`                | 0.3.3   |
+| **[Python](bindings/python.md)**         | PyPI          | `pip install tdcv2==0.3.3`          | 0.3.3   |
+| **[Rust](bindings/rust.md)**             | crates.io     | `cargo add tdcv2@0.3.3`            | 0.3.3   |
+| **[C#](bindings/csharp.md)**             | NuGet         | `dotnet add package Tdcv2 --version 0.3.3`   | 0.3.3   |
+| **[Java](bindings/java.md)**             | Maven Central | `io.github.nickliapin:tdcv2:0.3.3` | 0.3.3   |
 
 Every published package carries a starter set of data packs, so it works with
 nothing else installed; the other 95 languages and
