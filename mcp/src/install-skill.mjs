@@ -1,5 +1,5 @@
 /**
- * `npx -y tdcv2-mcp@0.1.2 install-skill [--project | --agents | --dir <folder>]`
+ * `npx -y tdcv2-mcp@0.1.3 install-skill [--project | --agents | --dir <folder>]`
  *
  * Copies the skill this package carries — the same SKILL.md, scripts and pages
  * the server reads — into a skills folder, as <folder>/tdcv2. An older copy there
@@ -13,7 +13,7 @@ import { SKILL_DIR } from './skill.mjs';
 const args = process.argv.slice(3);
 const version = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
 if (args.includes('--help') || args.includes('-h')) {
-  console.log(`npx -y tdcv2-mcp@0.1.2 install-skill [where]
+  console.log(`npx -y tdcv2-mcp@0.1.3 install-skill [where]
 
   (nothing)        ~/.claude/skills/tdcv2        Claude Code, for you in every project
   --project        ./.claude/skills/tdcv2        Claude Code, for this project only
