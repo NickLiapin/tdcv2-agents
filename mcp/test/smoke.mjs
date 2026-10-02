@@ -23,7 +23,7 @@ writeFileSync(join(project, 'orders.tdc'), readFileSync(join(here, 'fixtures', '
 
 const client = new Client({ name: 'smoke', version: '0' });
 await client.connect(new StdioClientTransport({
-  command: process.execPath, args: [join(serverRoot, 'src', 'cli.mjs')], cwd: project, // as `npx -y tdcv2-mcp@0.1.3` starts it
+  command: process.execPath, args: [join(serverRoot, 'src', 'cli.mjs')], cwd: project, // as `npx -y tdcv2-mcp@0.1.2` starts it
   env: { ...process.env, TDCV2_ENGINE: ownEngine },
 }));
 
