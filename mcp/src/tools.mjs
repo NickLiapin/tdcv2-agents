@@ -6,7 +6,8 @@
  * client started it in — and a file is only ever written inside it.
  */
 import { readFileSync, statSync, openSync, readSync, closeSync, mkdirSync, existsSync } from 'node:fs';
-import { resolve, relative as nativeRelative, isAbsolute, dirname, basename, extname, sep } from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { resolve, relative as nativeRelative, isAbsolute, dirname, basename, extname, join, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { lib, readPage, searchDocs, guide } from './skill.mjs';
 
@@ -32,7 +33,7 @@ export async function engine() {
     const found = pinned
       ? await lib.engine.loadEngine({ cwd: pinned, path: '', fallback: pinned })
       : await lib.engine.loadEngine({ cwd: ROOT, fallback: OWN_ENGINE });
-    if (!found) throw new Error('no tdcv2 engine could be loaded — install it in the project: npm i -D tdcv2@0.3.3');
+    if (!found) throw new Error('no tdcv2 engine could be loaded — install it in the project: npm i -D tdcv2@0.3.4');
     engines.set(ROOT, found);
   }
   return engines.get(ROOT);
@@ -187,9 +188,49 @@ export async function tdcGenerate(args) {
 export async function tdcFindPacks({ query, locale, limit = 15 }) {
   const { mod } = await engine();
   const r = lib.packs.searchPacks(mod, { words: [query], locale, limit: Math.min(limit, 30) });
-  const text = lib.packs.formatPackSearch(r).join('\n')
-    .replaceAll('npx -y tdcv2@0.3.3 check --brief', 'tdc_check'); // this client checks through the tool
+  const install = (loc) => [`Install it: tdc_pack_add with ids ["${loc}"] — it sets the project up for packs first if it is not yet.`];
+  const text = lib.packs.formatPackSearch(r, { install }).join('\n')
+    .replaceAll('npx -y tdcv2@0.3.4 check --brief', 'tdc_check'); // this client checks through the tool
   return { text, data: r };
+}
+
+/** The engine's own command line, as its package declares it, run in the project. */
+function engineCli(root, args) {
+  const bin = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).bin?.tdcv2;
+  if (!bin) throw new Error(`the tdcv2 package at ${root} declares no tdcv2 command`);
+  const r = spawnSync(process.execPath, [join(root, bin), ...args], { cwd: ROOT, encoding: 'utf8', timeout: 10 * 60 * 1000 });
+  return { command: `tdcv2 ${args.join(' ')}`, code: r.status, out: `${r.stdout ?? ''}${r.stderr ?? ''}`.trim() || (r.error?.message ?? '') };
+}
+
+/**
+ * Install data packs the way `tdcv2 pack add` does — it is that command, of the
+ * engine this project uses. A project without a pack store gets one first with
+ * `tdcv2 init --yes`, as the engine's own message asks.
+ */
+export async function tdcPackAdd({ ids }) {
+  const { mod, root } = await engine();
+  const want = [...new Set(ids.map((s) => s.trim()).filter(Boolean))];
+  if (!want.length) throw new ToolError('give at least one pack id, such as "fr" (a language) or "france" (a country); tdc_find_packs names the missing one');
+  const steps = [];
+  let add = engineCli(root, ['pack', 'add', ...want]);
+  if (add.code !== 0 && /no pack store configured/.test(add.out)) {
+    // Engines that know --no-examples (their help says so) set up the store and
+    // nothing else; older ones also drop a tdcv2-examples/ folder in the project.
+    const quiet = /--no-examples\b/.test(engineCli(root, ['init', '--help']).out) ? ['--no-examples'] : [];
+    const init = engineCli(root, ['init', '--yes', ...quiet]);
+    steps.push(init);
+    if (init.code !== 0) throw new ToolError(`${init.command} failed:\n${init.out}`);
+    add = engineCli(root, ['pack', 'add', ...want]);
+  }
+  steps.push(add);
+  const log = steps.map((s) => `$ ${s.command}\n${s.out}`).join('\n\n');
+  if (add.code !== 0) throw new ToolError(log);
+  mod.clearPackCache?.(); // the next search and check in this server see the new packs
+  lib.packs.forgetPacks(mod);
+  return {
+    text: `${log}\n\nInstalled: ${want.join(', ')}. tdc_find_packs and tdc_check see them now.`,
+    data: { ok: true, engine: mod.VERSION, installed: want, steps },
+  };
 }
 
 export async function tdcPeek({ path, column, rows = 3 }) {

@@ -14,6 +14,8 @@ const baseOf = (loc) => (loc?.includes('-') ? loc.slice(0, loc.lastIndexOf('-'))
 
 /** One row per path a config writes, built once per engine. */
 const indexes = new WeakMap();
+/** Forget the index after packs were added or removed, so the next search sees them. */
+export const forgetPacks = (tdc) => indexes.delete(tdc);
 function indexOf(tdc) {
   if (indexes.has(tdc)) return indexes.get(tdc);
   // packRoots() sees what a run sees: bundled packs plus those installed with
@@ -120,8 +122,14 @@ export function searchPacks(tdc, { words, locale, limit = 15 }) {
   };
 }
 
+/** How to install a missing locale, from a terminal. The MCP server words it as its tool. */
+export const installLines = (locale) => [
+  'Install it:  npx -y tdcv2@0.3.4 init --yes --no-examples   (once per project, if tdcv2.config.json is missing)',
+  `             npx -y tdcv2@0.3.4 pack add ${locale}`,
+];
+
 /** The result as the lines scripts/find-packs.mjs prints. */
-export function formatPackSearch(r) {
+export function formatPackSearch(r, { install = installLines } = {}) {
   const out = [];
   const line = (row) => {
     const n = row.locales.length;
@@ -136,11 +144,10 @@ export function formatPackSearch(r) {
     } else {
       out.push(`This tdcv2 (${r.engine}) lists only its bundled packs (${r.installed.join(', ')}), not ones added with \`pack add\`.`);
       out.push(`If "${r.locale}" is already added: write the path you expect, set local="${r.locale}", and run`);
-      out.push('`npx -y tdcv2@0.3.3 check --brief` — paths differ between locales, and TDC217 names where it exists.');
+      out.push('`npx -y tdcv2@0.3.4 check --brief` — paths differ between locales, and TDC217 names where it exists.');
       out.push('If not added yet:');
     }
-    out.push('Install it:  npx -y tdcv2@0.3.3 init --yes   (once per project, if tdcv2.config.json is missing)');
-    out.push(`             npx -y tdcv2@0.3.3 pack add ${r.locale}`);
+    out.push(...install(r.locale));
     if (r.seesInstalled) out.push('Then search again.');
     if (r.matches.length) out.push('', 'Locale-free packs that match meanwhile:');
   }

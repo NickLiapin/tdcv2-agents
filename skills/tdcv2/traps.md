@@ -1,105 +1,11 @@
 # Traps — what `check` does and does not tell you
 
-Every example below was run through `tdcv2` 0.3.3; the `check` lines and outputs are
+Every example below was run through `tdcv2` 0.3.4; the `check` lines and outputs are
 what the engine printed. Generated from the engine's answers — do not edit by hand.
 
 ## Silent — `check` is clean, the data is not what was meant
 
 Nothing tells you about these. Read them before writing a config.
-
-### No `seed` — a different file on every run
-
-Without `seed=` on `<env>` each run draws anew; nothing warns. The whole point of a config is lost.
-
-**Wrong**
-
-```xml
-<tdc>
-    <env count="3" local="en">
-        <sequence name="N">
-            <gen type="number" value="1..1000"/>
-        </sequence>
-    </env>
-    <block>
-        <line><data>${{N}}</data></line>
-    </block>
-</tdc>
-```
-
-`check`: clean. Two runs give two different files (the numbers change on every build of this page, so they are not shown).
-
-**Right**
-
-```xml
-<tdc>
-    <env count="3" seed="orders" local="en">
-        <sequence name="N">
-            <gen type="number" value="1..1000"/>
-        </sequence>
-    </env>
-    <block>
-        <line><data>${{N}}</data></line>
-    </block>
-</tdc>
-```
-
-`check`: clean. Two runs, the same output both times:
-
-```
-593
-760
-951
-```
-
-### `mm` is minutes, `MM` is the month
-
-Formats are Moment-style. In a date-only range the minutes are always 00 — a month of `00` comes out without a word.
-
-**Wrong**
-
-```xml
-<tdc>
-    <env count="3" seed="t" local="en">
-        <sequence name="D">
-            <gen type="date" from="2025-01-01" to="2025-12-31" format="YYYY-mm-DD"/>
-        </sequence>
-    </env>
-    <block>
-        <line><data>${{D}}</data></line>
-    </block>
-</tdc>
-```
-
-`check`: clean. Output:
-
-```
-2025-00-06
-2025-00-15
-2025-00-18
-```
-
-**Right**
-
-```xml
-<tdc>
-    <env count="3" seed="t" local="en">
-        <sequence name="D">
-            <gen type="date" from="2025-01-01" to="2025-12-31" format="YYYY-MM-DD"/>
-        </sequence>
-    </env>
-    <block>
-        <line><data>${{D}}</data></line>
-    </block>
-</tdc>
-```
-
-`check`: clean. Output:
-
-```
-2025-03-06
-2025-07-15
-2025-06-18
-```
 
 ### A `date` without `format` is `MM/DD/YYYY`
 
@@ -149,56 +55,6 @@ Set `format=` whenever the consumer expects ISO or anything else.
 2025-03-06
 2025-07-15
 2025-06-18
-```
-
-### `&quot;` in `<data>` stays `&quot;`
-
-TDC is not XML: nothing is expanded. Write the character itself — `"`, `<`, `&` are plain text inside `<data>`.
-
-**Wrong**
-
-```xml
-<tdc>
-    <env count="3" seed="t" local="en">
-        <sequence name="A">
-            <gen type="text" value="x"/>
-        </sequence>
-    </env>
-    <block>
-        <line><data>{&quot;a&quot;: &quot;${{A}}&quot;}</data></line>
-    </block>
-</tdc>
-```
-
-`check`: clean. Output:
-
-```
-{&quot;a&quot;: &quot;x&quot;}
-{&quot;a&quot;: &quot;x&quot;}
-{&quot;a&quot;: &quot;x&quot;}
-```
-
-**Right**
-
-```xml
-<tdc>
-    <env count="3" seed="t" local="en">
-        <sequence name="A">
-            <gen type="text" value="x"/>
-        </sequence>
-    </env>
-    <block>
-        <line><data>{"a": "${{A}}"}</data></line>
-    </block>
-</tdc>
-```
-
-`check`: clean. Output:
-
-```
-{"a": "x"}
-{"a": "x"}
-{"a": "x"}
 ```
 
 ### `number` is whole unless `decimals=` — `0..1` gives only 0 and 1
@@ -361,6 +217,172 @@ Put the separator on all but the last record: `<data if="!_last">,</data>`, with
 [
 {"id": 1},
 {"id": 2},
+```
+
+## `check` warns — and the run still goes ahead
+
+A warning does not stop the run, and the file comes out wrong. Treat every warning as a fix to make.
+
+### No `seed` — a different file on every run
+
+Without `seed=` on `<env>` each run draws anew. The whole point of a config is lost.
+
+**Wrong**
+
+```xml
+<tdc>
+    <env count="3" local="en">
+        <sequence name="N">
+            <gen type="number" value="1..1000"/>
+        </sequence>
+    </env>
+    <block>
+        <line><data>${{N}}</data></line>
+    </block>
+</tdc>
+```
+
+`check` warns, and the run goes ahead:
+
+```
+TDC309 <env> has no seed=, so every run draws a different file — Add seed="…" — any text will do — and this config gives the same bytes on every run, in all five implementations. Leave it out only when fresh data each time is the point.
+```
+
+Two runs give two different files (the numbers change on every build of this page, so they are not shown).
+
+**Right**
+
+```xml
+<tdc>
+    <env count="3" seed="orders" local="en">
+        <sequence name="N">
+            <gen type="number" value="1..1000"/>
+        </sequence>
+    </env>
+    <block>
+        <line><data>${{N}}</data></line>
+    </block>
+</tdc>
+```
+
+`check`: clean. Two runs, the same output both times:
+
+```
+593
+760
+951
+```
+
+### `mm` is minutes, `MM` is the month
+
+Formats are Moment-style. In a date-only range the minutes are always 00 — every month comes out `00`.
+
+**Wrong**
+
+```xml
+<tdc>
+    <env count="3" seed="t" local="en">
+        <sequence name="D">
+            <gen type="date" from="2025-01-01" to="2025-12-31" format="YYYY-mm-DD"/>
+        </sequence>
+    </env>
+    <block>
+        <line><data>${{D}}</data></line>
+    </block>
+</tdc>
+```
+
+`check` warns, and the run goes ahead:
+
+```
+TDC310 "mm" in format="YYYY-mm-DD" is minutes, and nothing else here is a time of day — A date without a time prints minutes as 00 on every row. The month is "MM" (or "M"); if the minutes are meant, put the hour beside them — HH:mm. :: help: did you mean "MM" (the month)?
+```
+
+Output:
+
+```
+2025-00-06
+2025-00-15
+2025-00-18
+```
+
+**Right**
+
+```xml
+<tdc>
+    <env count="3" seed="t" local="en">
+        <sequence name="D">
+            <gen type="date" from="2025-01-01" to="2025-12-31" format="YYYY-MM-DD"/>
+        </sequence>
+    </env>
+    <block>
+        <line><data>${{D}}</data></line>
+    </block>
+</tdc>
+```
+
+`check`: clean. Output:
+
+```
+2025-03-06
+2025-07-15
+2025-06-18
+```
+
+### `&quot;` in `<data>` stays `&quot;`
+
+TDC is not XML: nothing is expanded. Write the character itself — `"`, `<`, `&` are plain text inside `<data>`.
+
+**Wrong**
+
+```xml
+<tdc>
+    <env count="3" seed="t" local="en">
+        <sequence name="A">
+            <gen type="text" value="x"/>
+        </sequence>
+    </env>
+    <block>
+        <line><data>{&quot;a&quot;: &quot;${{A}}&quot;}</data></line>
+    </block>
+</tdc>
+```
+
+`check` warns, and the run goes ahead:
+
+```
+TDC311 &quot; in <data> reaches the output as written — TDC expands no entities — Write the character itself — <data> takes " < > & ' as they are, so &quot; is just ". If the entity is what the output should hold — HTML, say — leave it and ignore this.
+```
+
+Output:
+
+```
+{&quot;a&quot;: &quot;x&quot;}
+{&quot;a&quot;: &quot;x&quot;}
+{&quot;a&quot;: &quot;x&quot;}
+```
+
+**Right**
+
+```xml
+<tdc>
+    <env count="3" seed="t" local="en">
+        <sequence name="A">
+            <gen type="text" value="x"/>
+        </sequence>
+    </env>
+    <block>
+        <line><data>{"a": "${{A}}"}</data></line>
+    </block>
+</tdc>
+```
+
+`check`: clean. Output:
+
+```
+{"a": "x"}
+{"a": "x"}
+{"a": "x"}
 ```
 
 ## Clean at `check`, refused at the run

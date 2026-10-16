@@ -35,11 +35,11 @@ tdcv2: no pack store configured — run `tdcv2 init` first
 >
 > | Your language | Getting the command                                    | Running it                        |
 > | :------------ | :----------------------------------------------------- | :-------------------------------- |
-> | Node.js       | nothing — `npx` fetches it                             | `npx tdcv2@0.3.3 pack add ru`           |
-> | Python        | `pip install tdcv2==0.3.3`                                    | `tdcv2 pack add ru`               |
-> | Rust          | `cargo install tdcv2@0.3.3`                                  | `tdcv2 pack add ru`               |
-> | C#            | `dotnet tool install --global Tdcv2.Cli`               | `tdcv2 pack add ru`               |
-> | Java          | download `tdcv2-0.3.3-cli.jar` from Maven Central      | `java -jar tdcv2-0.3.3-cli.jar pack add ru` |
+> | Node.js       | nothing — `npx` fetches it                             | `npx tdcv2@0.3.4 pack add ru`           |
+> | Python        | `pip install tdcv2==0.3.4`                                    | `tdcv2 pack add ru`               |
+> | Rust          | `cargo install tdcv2@0.3.4`                                  | `tdcv2 pack add ru`               |
+> | C#            | `dotnet tool install --global Tdcv2.Cli --version 0.3.4`               | `tdcv2 pack add ru`               |
+> | Java          | download `tdcv2-0.3.4-cli.jar` from Maven Central      | `java -jar tdcv2-0.3.4-cli.jar pack add ru` |
 >
 > Three of them put a `tdcv2` command on your PATH and read the same from there on. Node
 > needs no install at all — `npx` downloads and runs in one step. Java is the odd one out
@@ -47,11 +47,11 @@ tdcv2: no pack store configured — run `tdcv2 init` first
 > a command on your PATH, so the command line is a jar you run yourself:
 >
 > ```bash
-> curl -LO https://repo1.maven.org/maven2/io/github/nickliapin/tdcv2/0.3.3/tdcv2-0.3.3-cli.jar
-> java -jar tdcv2-0.3.3-cli.jar pack add ru
+> curl -LO https://repo1.maven.org/maven2/io/github/nickliapin/tdcv2/0.3.4/tdcv2-0.3.4-cli.jar
+> java -jar tdcv2-0.3.4-cli.jar pack add ru
 > ```
 >
-> Worth an alias — `alias tdcv2='java -jar /path/to/tdcv2-0.3.3-cli.jar'` — after which every
+> Worth an alias — `alias tdcv2='java -jar /path/to/tdcv2-0.3.4-cli.jar'` — after which every
 > command on this page reads the same as it does everywhere else.
 >
 > A project set up by one of them is ready for the other four — same config file, same
@@ -70,7 +70,8 @@ on a prompt.
 
 A **project** init also writes three runnable examples into a new `tdcv2-examples/`
 folder — worth knowing before running it inside an existing repository.
-[`--global`](#--global---g--one-config-for-every-project) writes none.
+[`--global`](#--global---g--one-config-for-every-project) writes none, and neither
+does [`--no-examples`](#--no-examples--the-config-and-nothing-else).
 
 ```bash
 tdcv2 init            # ask, then write
@@ -151,8 +152,7 @@ you deliberately want to reset it — to change the pack folder, say, or to star
 `tdcv2 init (config already exists)`
 
 ```
-Config already exists: /path/to/project/tdcv2.config.json
-Nothing written. Re-run with --force to overwrite.
+tdcv2: config already exists at "/path/to/project/tdcv2.config.json" — pass --force to overwrite, or edit it directly
 ```
 
 ### `--locale <loc>` — pick the default locale
@@ -171,6 +171,26 @@ or at a path outside the repo when you don't want packs living next to your sour
 
 ```bash
 tdcv2 init --yes --data-path ../shared-tdc-packs
+```
+
+### `--no-examples` — the config and nothing else
+
+Writes the config and creates the pack folder, and leaves out `tdcv2-examples/`. Use it
+when `init` runs on someone else's behalf — a script, or an AI agent that needs a pack
+store halfway through a task — and a folder of examples would be one nobody asked for.
+
+```bash
+tdcv2 init --yes --no-examples
+```
+
+`tdcv2 init --yes --no-examples`
+
+```
+Wrote project config: /path/to/project/tdcv2.config.json
+  data packs → /path/to/project/tdcv2-packs
+  locale     → en
+
+Next: run `tdcv2 pack` to download data packs into that folder.
 ```
 
 ## The `tdcv2.config.json` file

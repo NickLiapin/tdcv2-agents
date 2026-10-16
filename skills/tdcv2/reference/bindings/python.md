@@ -7,11 +7,11 @@ cross-language guarantee is one of TDC's core promises.
 ## Getting it
 
 > [!TIP]
-> **On PyPI — version 0.3.3**
+> **On PyPI — version 0.3.4**
 >
 >
 > ```bash
-> pip install tdcv2==0.3.3
+> pip install tdcv2==0.3.4
 > ```
 >
 > That gives you both the library and the `tdcv2` command, with a starter set of data

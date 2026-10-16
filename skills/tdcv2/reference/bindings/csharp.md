@@ -9,11 +9,11 @@ Two packages: the library, and the command line as a `dotnet tool`.
 ## Getting it
 
 > [!TIP]
-> **On NuGet — version 0.3.3**
+> **On NuGet — version 0.3.4**
 >
 >
 > ```bash
-> dotnet add package Tdcv2 --version 0.3.3
+> dotnet add package Tdcv2 --version 0.3.4
 > ```
 >
 > The starter data packs are embedded in the assembly, so it works with nothing else
@@ -21,7 +21,7 @@ Two packages: the library, and the command line as a `dotnet tool`.
 > on your PATH:
 >
 > ```bash
-> dotnet tool install --global Tdcv2.Cli
+> dotnet tool install --global Tdcv2.Cli --version 0.3.4
 > ```
 >
 

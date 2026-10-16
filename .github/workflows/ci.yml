@@ -46,18 +46,18 @@ jobs:
           mkdir -p ../work/.claude/skills
           cp -R skills/tdcv2 ../work/.claude/skills/tdcv2
           cp mcp/test/fixtures/orders.tdc ../work/
-      - name: npx tdcv2@0.3.3
+      - name: npx tdcv2@0.3.4
         working-directory: ../work
-        run: npx -y tdcv2@0.3.3 --version
+        run: npx -y tdcv2@0.3.4 --version
       - name: find-packs
         working-directory: ../work
         run: node .claude/skills/tdcv2/scripts/find-packs.mjs last name > find.txt
       - name: check
         working-directory: ../work
-        run: npx -y tdcv2@0.3.3 check --brief orders.tdc
+        run: npx -y tdcv2@0.3.4 check --brief orders.tdc
       - name: generate
         working-directory: ../work
-        run: npx -y tdcv2@0.3.3 orders.tdc -o orders.csv
+        run: npx -y tdcv2@0.3.4 orders.tdc -o orders.csv
       - name: peek
         working-directory: ../work
         run: node .claude/skills/tdcv2/scripts/peek.mjs orders.csv > peek.txt

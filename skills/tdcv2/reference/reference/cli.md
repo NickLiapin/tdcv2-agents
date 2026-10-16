@@ -10,7 +10,7 @@ tdcv2 <input.tdc> [options]
 > [!NOTE]
 > **Where `tdcv2` comes from**
 >
-> `npm install -D tdcv2@0.3.3`, `pip install tdcv2==0.3.3` and `cargo install tdcv2@0.3.3` each put `tdcv2` on
+> `npm install -D tdcv2@0.3.4`, `pip install tdcv2==0.3.4` and `cargo install tdcv2@0.3.4` each put `tdcv2` on
 > your PATH from the package that carries the library. Maven and NuGet have no equivalent of
 > npm's `bin`, so for Java and C# the command line is a second artefact —
 > [Installation](../getting-started/installation.md) has the tab for each. An alias makes
@@ -281,6 +281,10 @@ tdcv2: demo.tdc is valid
 Warnings do not fail the check — they are printed and the exit code stays `0`, because a
 warning describes something that works but probably is not what you meant. Only an error
 exits `1`.
+
+One warning is shown only here and in the editor: `TDC309`, an `<env>` with no `seed=`. A
+run says the same thing its own way — it prints the seed it drew, which is what you need to
+get that file again — and a run given `--seed` has nothing to warn about.
 
 `--brief` is the only flag `check` takes. It prints one line per diagnostic — code,
 position, message, hint, and last the nearest real name when there is one — with no source

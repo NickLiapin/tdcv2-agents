@@ -1,6 +1,6 @@
 # TDCv2 reference — index
 
-Built from the engine's docs at v0.3.3 (2026-09-29); they say they cover TDC 0.3.3 (updated 27 September 2026).
+Built from the engine's docs at v0.3.4 (2026-10-16); they say they cover TDC 0.3.4 (updated 16 October 2026).
 Open a page with the Read tool: `reference/<path>`. Pages link to each other by relative path.
 For another engine version (the one the project itself uses), the same page of that version:
 `https://raw.githubusercontent.com/NickLiapin/tdcv2/v<version>/docs/<path>`. What `check` says beats any page.

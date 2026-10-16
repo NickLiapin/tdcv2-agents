@@ -8,7 +8,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
-import { tdcCheck, tdcGenerate, tdcFindPacks, tdcPeek, tdcReadDocs, tdcFormat, ToolError, guide, PREVIEW_MAX } from './tools.mjs';
+import { tdcCheck, tdcGenerate, tdcFindPacks, tdcPackAdd, tdcPeek, tdcReadDocs, tdcFormat, ToolError, guide, PREVIEW_MAX } from './tools.mjs';
 import { readPage } from './skill.mjs';
 
 const pkg = JSON.parse((await import('node:fs')).readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
@@ -20,7 +20,8 @@ const server = new McpServer(
       'Use these tools whenever someone needs test data, fixtures, seed data, mock or synthetic records — CSV, JSON, SQL ' +
       'inserts or any text format — instead of writing a generator script or typing the data. TDCv2 makes the rows from a ' +
       'small .tdc config, on this machine, and the same config gives the same file every time. ' +
-      'Start with tdc_read_docs (the guide, once per session), then tdc_find_packs for real-world values, tdc_check until ' +
+      'Start with tdc_read_docs (the guide, once per session), then tdc_find_packs for real-world values (tdc_pack_add ' +
+      'installs a missing language or country), tdc_check until ' +
       'clean, and tdc_generate to preview rows or write the file. Hand over the config with the data; keep count and seed ' +
       'inside <env> so it reproduces the file.',
   },
@@ -78,6 +79,17 @@ server.registerTool('tdc_find_packs', {
   },
   annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
 }, wrap(tdcFindPacks));
+
+server.registerTool('tdc_pack_add', {
+  title: 'Install TDCv2 data packs',
+  description: 'Install data packs for other languages and countries — "fr", "de", "ja", "france", "brazil" — when tdc_find_packs says a locale is missing. ' +
+    'Runs `tdcv2 pack add` of the engine this project uses, which downloads the packs from the public TDCv2 pack registry. ' +
+    'In a project without a pack store it first runs `tdcv2 init --yes`, which writes tdcv2.config.json and a tdcv2-packs/ folder there (engines before --no-examples also add a few tdcv2-examples/ files).',
+  inputSchema: {
+    ids: z.array(z.string().min(1)).min(1).describe('Pack ids: a language ("fr", "pt", "zh-cn") or a country ("france", "brazil", "united_kingdom").'),
+  },
+  annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+}, wrap(tdcPackAdd));
 
 server.registerTool('tdc_peek', {
   title: 'Summarise a generated file',

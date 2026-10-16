@@ -23,8 +23,8 @@ writeFileSync(join(project, 'orders.tdc'), readFileSync(join(here, 'fixtures', '
 
 const client = new Client({ name: 'smoke', version: '0' });
 await client.connect(new StdioClientTransport({
-  command: process.execPath, args: [join(serverRoot, 'src', 'cli.mjs')], cwd: project, // as `npx -y tdcv2-mcp@0.1.2` starts it
-  env: { ...process.env, TDCV2_ENGINE: ownEngine },
+  command: process.execPath, args: [join(serverRoot, 'src', 'cli.mjs')], cwd: project, // as `npx -y tdcv2-mcp@0.1.4` starts it
+  env: { ...process.env, TDCV2_ENGINE: process.env.TDCV2_ENGINE ?? ownEngine }, // another engine: TDCV2_ENGINE=<package folder>
 }));
 
 let failed = 0;
@@ -36,7 +36,7 @@ const text = (r) => r.structuredContent?.text ?? '';
 const plain = (r) => r.content?.[0]?.text ?? '';
 
 const tools = (await client.listTools()).tools.map((t) => t.name).sort();
-say(tools.join() === 'tdc_check,tdc_find_packs,tdc_format,tdc_generate,tdc_peek,tdc_read_docs', `tools: ${tools.join(', ')}`);
+say(tools.join() === 'tdc_check,tdc_find_packs,tdc_format,tdc_generate,tdc_pack_add,tdc_peek,tdc_read_docs', `tools: ${tools.join(', ')}`);
 
 const g = await call('tdc_read_docs', {});
 say(plain(g) === text(g), 'every answer carries its text in structuredContent too');
@@ -87,6 +87,26 @@ const pr = await client.getPrompt({ name: 'tdcv2_guide' });
 say(pr.messages?.[0]?.content?.text?.includes('# TDCv2'), 'prompt: tdcv2_guide');
 const rs = await client.readResource({ uri: 'tdcv2://from-code' });
 say(rs.contents?.[0]?.text?.includes('5 Robert 84'), 'resource: tdcv2://from-code');
+
+// Another language: the search says to install it, tdc_pack_add does (init first, in a project
+// without a pack store), and the same server then finds the pack and generates from it.
+const miss = await call('tdc_find_packs', { query: 'last name', locale: 'fr' });
+if (miss.structuredContent?.missingLocale) say(text(miss).includes('tdc_pack_add'), 'find_packs: a missing locale points at tdc_pack_add');
+else console.log('· find_packs: fr is already here with this engine (a development build reads every pack from its repository)');
+const pa = await call('tdc_pack_add', { ids: ['fr'] });
+say(pa.structuredContent?.ok && existsSync(join(project, 'tdcv2.config.json')) && existsSync(join(project, 'tdcv2-packs', 'fr')),
+  `pack_add: ${pa.structuredContent?.steps?.map((s) => s.command).join(' → ') ?? plain(pa).slice(0, 200)}`);
+if (pa.structuredContent?.steps?.[0]?.command.includes('--no-examples')) {
+  say(!existsSync(join(project, 'tdcv2-examples')), 'pack_add: init --no-examples left no tdcv2-examples/ in the project');
+}
+const found = await call('tdc_find_packs', { query: 'last name', locale: 'fr' });
+const frPath = found.structuredContent?.matches?.[0]?.path;
+say(!found.structuredContent?.missingLocale && Boolean(frPath), `find_packs: fr found after pack_add, in the same server (${frPath})`);
+const FR = `<tdc><env count="3" seed="s" local="fr"><sequence name="Nom"><gen type="template" value="${frPath}"/></sequence></env><block><line><data>\${{Nom}}</data></line></block></tdc>`;
+const frRows = await call('tdc_generate', { config: FR, preview: 3 });
+say(frRows.structuredContent?.ok && frRows.structuredContent?.head?.length === 3, `generate: French rows (${frRows.structuredContent?.head?.join(', ') ?? plain(frRows).slice(0, 120)})`);
+const badId = await call('tdc_pack_add', { ids: ['xx-nope'] });
+say(badId.isError && plain(badId).includes('unknown bundle'), 'pack_add: an unknown id is refused, with the list of ids');
 
 await client.close();
 

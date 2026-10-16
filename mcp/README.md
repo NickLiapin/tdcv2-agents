@@ -1,13 +1,14 @@
 # tdcv2-mcp
 
-An MCP server that lets an AI agent make test data with [TDCv2](https://nickliapin.github.io/tdcv2/):
+An MCP server that lets an AI agent generate fake, mock, synthetic and test data with
+[TDCv2](https://nickliapin.github.io/tdcv2/):
 the agent writes a small `.tdc` config, the engine generates the rows **on your machine**,
 and the same config gives the same file byte for byte on every run. Nothing is sent
 anywhere — the server only runs the engine locally.
 
 It is the same knowledge as the TDCv2 skill, as tools — for clients without a terminal, or
 that prefer tools to skills. The skill itself ships in this package:
-`npx -y tdcv2-mcp@0.1.2 install-skill` puts it where your agent looks for skills (`--help` for
+`npx -y tdcv2-mcp@0.1.4 install-skill` puts it where your agent looks for skills (`--help` for
 the options).
 
 
@@ -16,19 +17,20 @@ the options).
 Claude Code:
 
 ```sh
-claude mcp add tdcv2 -- npx -y tdcv2-mcp@0.1.2
+claude mcp add tdcv2 -- npx -y tdcv2-mcp@0.1.4
 ```
 
 Claude Desktop, Cursor and other clients — the usual `mcpServers` entry:
 
 ```json
-{ "mcpServers": { "tdcv2": { "command": "npx", "args": ["-y", "tdcv2-mcp@0.1.2"] } } }
+{ "mcpServers": { "tdcv2": { "command": "npx", "args": ["-y", "tdcv2-mcp@0.1.4"] } } }
 ```
 
 Windows: use `"command": "npx.cmd"` if the client cannot start `npx`.
 
 The server works in the folder the client starts it in — the project. It reads `.tdc`
-files and writes generated files only inside that folder.
+files and writes generated files only inside that folder. `tdc_pack_add` puts packs where
+the project's TDCv2 config says (by default `tdcv2-packs/` in the project).
 
 ## Tools
 
@@ -36,6 +38,7 @@ files and writes generated files only inside that folder.
 | :--- | :--- |
 | `tdc_read_docs` | the guide (read once), traps `check` does not catch, test code in five languages, any reference page |
 | `tdc_find_packs` | data packs installed here, by words — the paths for `<gen type="template">` |
+| `tdc_pack_add` | install packs for another language or country (`fr`, `france`) — `tdcv2 pack add`, after `tdcv2 init` in a project without a pack store |
 | `tdc_check` | every diagnostic with code, line, column, hint and "did you mean" |
 | `tdc_generate` | preview (at most 50 lines) or write the file; a failed `<assert>` comes back as row, message, condition, values |
 | `tdc_peek` | a short summary of a CSV, JSON or SQL file — rows, splits, ranges |
@@ -46,7 +49,7 @@ Also a prompt, `tdcv2_guide`, and resources `tdcv2://guide`, `tdcv2://traps`,
 
 ## Which engine
 
-The project's own `tdcv2` if it has one (`npm i -D tdcv2@0.3.3`), then one on `PATH`, else the
+The project's own `tdcv2` if it has one (`npm i -D tdcv2@0.3.4`), then one on `PATH`, else the
 server's own dependency. `TDCV2_ENGINE=<package folder>` pins one.
 
 ## Checked

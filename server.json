@@ -1,17 +1,17 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.NickLiapin/tdcv2",
-  "description": "Deterministic test data from a .tdc config, generated locally by the TDCv2 engine.",
+  "description": "Fake, mock and test data generator: CSV, JSON, SQL from a .tdc config, made locally by TDCv2.",
   "repository": {
     "url": "https://github.com/NickLiapin/tdcv2-agents",
     "source": "github"
   },
-  "version": "0.1.2",
+  "version": "0.1.4",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "tdcv2-mcp",
-      "version": "0.1.2",
+      "version": "0.1.4",
       "transport": {
         "type": "stdio"
       }

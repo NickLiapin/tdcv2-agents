@@ -1,6 +1,6 @@
 {
   "name": "tdcv2",
-  "description": "TDCv2 for AI agents",
+  "description": "TDCv2 for AI agents: a fake and test data generator",
   "owner": {
     "name": "Nikolai Liapin",
     "url": "https://github.com/NickLiapin"
@@ -9,7 +9,7 @@
     {
       "name": "tdcv2",
       "source": "./",
-      "description": "Test data from a small .tdc config — CSV, JSON, SQL or any text — generated on your machine by the TDCv2 engine; the same config gives the same file every time. A skill that teaches the agent the language, and an MCP server to check, generate and find data packs."
+      "description": "Data generator for fake, mock, synthetic and test data: realistic names, emails, addresses, phone numbers, IBANs and more for 95 languages and 198 countries, as CSV, JSON, SQL inserts or any text format. The agent describes the data in a small .tdc config and the TDCv2 engine generates it on your machine — related tables, exact proportions, the same file every time. A Faker alternative for whole datasets: database seeds, test fixtures, demo data."
     }
   ]
 }
