@@ -9,12 +9,12 @@ One crate, library and command line together.
 ## Getting it
 
 > [!TIP]
-> **On crates.io — version 0.3.4**
+> **On crates.io — version 0.3.5**
 >
 >
 > ```bash
-> cargo add tdcv2@0.3.4      # as a dependency
-> cargo install tdcv2@0.3.4  # as a command
+> cargo add tdcv2@0.3.5      # as a dependency
+> cargo install tdcv2@0.3.5  # as a command
 > ```
 >
 > The crate takes **no dependencies**, and the starter data packs are compiled into the

@@ -23,7 +23,8 @@ const server = new McpServer(
       'Start with tdc_read_docs (the guide, once per session), then tdc_find_packs for real-world values (tdc_pack_add ' +
       'installs a missing language or country), tdc_check until ' +
       'clean, and tdc_generate to preview rows or write the file. Hand over the config with the data; keep count and seed ' +
-      'inside <env> so it reproduces the file.',
+      'inside <env> so it reproduces the file. If the TDCv2 skill is loaded too, these tools are its steps: its ' +
+      '`npx -y tdcv2@0.3.5 …` commands and these tools run the same engine — use either, the tools where there is no terminal.',
   },
 );
 
@@ -104,9 +105,9 @@ server.registerTool('tdc_peek', {
 
 server.registerTool('tdc_read_docs', {
   title: 'Read the TDCv2 guide and reference',
-  description: 'Start here when asked for test data, fixtures or seed data: the TDCv2 guide ("guide" — read it before the first config), traps check does not catch ("traps"), using the data from test code in five languages ("from-code"), the list of reference pages ("index"), or one reference page such as "generators/date". `query` searches the page list.',
+  description: 'Start here when asked for test data, fixtures or seed data: the TDCv2 guide ("guide" — read it before the first config), traps check does not catch ("traps"), using the data from test code in five languages ("from-code"), several linked tables in one file ("linked-tables"), the list of reference pages ("index"), or one reference page such as "generators/date". `query` searches the page list.',
   inputSchema: {
-    page: z.string().optional().describe('guide | traps | from-code | index | a reference path like generators/date. Default: guide.'),
+    page: z.string().optional().describe('guide | traps | from-code | linked-tables | index | a reference path like generators/date. Default: guide.'),
     query: z.string().optional().describe('Words to find in the page list instead of opening a page.'),
     offset: z.number().int().min(0).optional().describe('For long pages: continue from this character.'),
   },
@@ -126,7 +127,7 @@ server.registerPrompt('tdcv2_guide', {
   description: 'How to make test data with TDCv2 through this server: workflow, config shape, generators, traps.',
 }, () => ({ messages: [{ role: 'user', content: { type: 'text', text: guide() } }] }));
 
-for (const [name, title] of [['guide', 'TDCv2 guide'], ['traps', 'TDCv2 traps'], ['from-code', 'TDCv2 data from code']]) {
+for (const [name, title] of [['guide', 'TDCv2 guide'], ['traps', 'TDCv2 traps'], ['from-code', 'TDCv2 data from code'], ['linked-tables', 'TDCv2 linked tables']]) {
   server.registerResource(name, `tdcv2://${name}`, { title, mimeType: 'text/markdown' },
     async (uri) => ({ contents: [{ uri: uri.href, mimeType: 'text/markdown', text: readPage(name).text }] }));
 }

@@ -87,12 +87,40 @@ export function summarize(text, { name, ext, column, rows: sampleRows = 3 }) {
         return;
       }
     }
-    if (!Array.isArray(data)) {
+    const records = (arr) => Array.isArray(arr) && arr.length && arr.every((o) => o && typeof o === 'object' && !Array.isArray(o));
+    const one = (label, arr) => {
+      const head = [...new Set(arr.flatMap((o) => Object.keys(o)))];
+      table(label, head, arr.map((o) => head.map((h) => o[h])), arr.map((o) => JSON.stringify(o)));
+    };
+    if (Array.isArray(data)) { one('JSON array', data); return; }
+    // Several tables in one object — {"doctors": [...], "appointments": [...]}: each one, then the links.
+    const tables = Object.entries(data ?? {}).filter(([, v]) => records(v));
+    if (!tables.length) {
       out.push(`${name} — JSON ${typeof data}, not an array; top-level keys: ${Object.keys(data ?? {}).slice(0, 20).join(', ')}`);
       return;
     }
-    const head = [...new Set(data.flatMap((o) => (o && typeof o === 'object' ? Object.keys(o) : [])))];
-    table('JSON array', head, data.map((o) => head.map((h) => o?.[h])), data.map((o) => JSON.stringify(o)));
+    const others = Object.keys(data).filter((k) => !tables.some(([t]) => t === k));
+    out.push(`${name} — JSON object with ${tables.length} tables: ${tables.map(([t, v]) => `${t} (${v.length})`).join(', ')}${others.length ? `; other keys: ${others.join(', ')}` : ''}`);
+    for (const [t, arr] of tables) one(`"${t}"`, arr);
+    // A column <x>_id points at the table <x>, <x>s or <x>es, if it has an id: every value must be found there.
+    const byName = new Map(tables.map(([t, arr]) => [t.toLowerCase(), arr]));
+    const links = [];
+    for (const [t, arr] of tables) {
+      for (const col of new Set(arr.flatMap((o) => Object.keys(o)))) {
+        const m = /^(.+?)_?id$/i.exec(col);
+        if (!m || col.toLowerCase() === 'id') continue;
+        const base = m[1].replace(/_$/, '').toLowerCase();
+        const target = [base, `${base}s`, `${base}es`, base.replace(/y$/, 'ies')].find((n) => byName.has(n) && byName.get(n).some((o) => 'id' in o));
+        if (!target) continue;
+        const ids = new Set(byName.get(target).map((o) => String(o.id)));
+        const missing = arr.map((o) => o[col]).filter((v) => v !== null && v !== undefined && v !== '' && !ids.has(String(v)));
+        links.push(missing.length
+          ? `  ${t}.${col} → ${target}.id: ${missing.length} of ${arr.length} not found (e.g. ${JSON.stringify(missing[0])})`
+          : `  ${t}.${col} → ${target}.id: all ${arr.length} found`);
+        if (missing.length) ok = false;
+      }
+    }
+    if (links.length) out.push('links:', ...links);
   }
 
   function asSql() {

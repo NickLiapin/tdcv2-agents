@@ -23,7 +23,7 @@ writeFileSync(join(project, 'orders.tdc'), readFileSync(join(here, 'fixtures', '
 
 const client = new Client({ name: 'smoke', version: '0' });
 await client.connect(new StdioClientTransport({
-  command: process.execPath, args: [join(serverRoot, 'src', 'cli.mjs')], cwd: project, // as `npx -y tdcv2-mcp@0.1.4` starts it
+  command: process.execPath, args: [join(serverRoot, 'src', 'cli.mjs')], cwd: project, // as `npx -y tdcv2-mcp@0.1.5` starts it
   env: { ...process.env, TDCV2_ENGINE: process.env.TDCV2_ENGINE ?? ownEngine }, // another engine: TDCV2_ENGINE=<package folder>
 }));
 
@@ -82,6 +82,13 @@ const pk = await call('tdc_peek', { path: 'out/orders.csv', column: 'status' });
 say(/shipped 700/.test(text(pk)), 'peek: one column in full');
 const fm = await call('tdc_format', { config: TYPO });
 say(text(fm).split('\n').length > 3, 'format: pretty-printed');
+
+const lt = await call('tdc_read_docs', { page: 'linked-tables' });
+say(text(lt).includes('<pool name="Books"') && text(lt).includes('each` or pools'), 'read_docs: linked-tables, the recipe with its example');
+// Several tables in one JSON object: peek shows each and checks every <x>_id.
+writeFileSync(join(project, 'two.json'), JSON.stringify({ authors: [{ id: 1 }, { id: 2 }], books: [{ id: 1, author_id: 2 }, { id: 2, author_id: 7 }] }));
+const pt = await call('tdc_peek', { path: 'two.json' });
+say(text(pt).includes('books.author_id → authors.id: 1 of 2 not found'), 'peek: an object of arrays, a link that points nowhere is reported');
 
 const pr = await client.getPrompt({ name: 'tdcv2_guide' });
 say(pr.messages?.[0]?.content?.text?.includes('# TDCv2'), 'prompt: tdcv2_guide');

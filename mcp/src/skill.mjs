@@ -1,6 +1,6 @@
 /**
  * The knowledge the server hands out is the skill's own — SKILL.md, traps.md,
- * from-code.md, the reference built from the engine's docs — never a second copy
+ * from-code.md, linked-tables.md, the reference built from the engine's docs — never a second copy
  * written for the server. In the published package the skill is copied into
  * ./skill at pack time (scripts/copy-skill.mjs); in a repository it is read from
  * ../skills/tdcv2, or ../skill/tdcv2 in the development repository.
@@ -27,8 +27,8 @@ export const lib = {
  */
 const PREFACE = `> **Using this through the tdcv2 MCP server.** The guide below was written for agents with a
 > terminal. Here, use the tools instead:
-> \`npx -y tdcv2@0.3.4 check\` → **tdc_check** · \`npx -y tdcv2@0.3.4 <file> --count 5\` → **tdc_generate** (preview) ·
-> \`npx -y tdcv2@0.3.4 <file> -o <out>\` → **tdc_generate** with \`output\` · \`npx -y tdcv2@0.3.4 pack add <locale>\` (and its
+> \`npx -y tdcv2@0.3.5 check\` → **tdc_check** · \`npx -y tdcv2@0.3.5 <file> --count 5\` → **tdc_generate** (preview) ·
+> \`npx -y tdcv2@0.3.5 <file> -o <out>\` → **tdc_generate** with \`output\` · \`npx -y tdcv2@0.3.5 pack add <locale>\` (and its
 > \`init\`) → **tdc_pack_add** · \`scripts/find-packs.mjs\` →
 > **tdc_find_packs** · \`scripts/peek.mjs\` → **tdc_peek** · pages under \`<skill>/\` and \`reference/\` →
 > **tdc_read_docs**. Write the config into a \`.tdc\` file in the project with your file tools and pass its
@@ -48,6 +48,7 @@ const NAMED = {
   guide: null, // built by guide()
   traps: 'traps.md',
   'from-code': 'from-code.md',
+  'linked-tables': 'linked-tables.md',
   index: join('reference', 'INDEX.md'),
 };
 
@@ -71,8 +72,9 @@ export function searchDocs(query) {
   const words = query.toLowerCase().split(/\s+/).filter(Boolean);
   const index = readFileSync(join(SKILL_DIR, 'reference', 'INDEX.md'), 'utf8').split('\n').filter((l) => l.startsWith('- `'));
   const extra = [
-    '- `traps` — **Traps.** What `check` does and does not tell you: silent traps (no seed, mm vs MM, entities in <data>, integers by default, date format), the fixes for common errors.',
+    '- `traps` — **Traps.** What `check` does and does not tell you: silent traps (integers by default, date format, JSON commas), the warnings to act on (no seed, mm vs MM, entities in <data>), the fixes for common errors.',
     '- `from-code` — **TDCv2 data from code.** Load a .tdc in TypeScript, Python, Java, C# or Rust tests; each language\'s traps.',
+    '- `linked-tables` — **Several linked tables in one file.** Tables of their own sizes, many-to-many, one JSON array per table: pools as tables, a verified example, schedules without double booking.',
     '- `guide` — **The guide.** Workflow, the shape of a config, generators, checks, mistakes.',
   ];
   return [...extra, ...index].filter((l) => words.every((w) => l.toLowerCase().includes(w)));

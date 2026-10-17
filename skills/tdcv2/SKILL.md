@@ -9,7 +9,7 @@ TDCv2 is a deterministic test-data engine. You write a small `.tdc` config; the 
 generates the rows **locally**. Same config, same `seed` → the same file, byte for byte.
 The config is the deliverable — hand it over with the data.
 
-This skill is instructions only; the engine runs in the terminal — `npx -y tdcv2@0.3.4 …`
+This skill is instructions only; the engine runs in the terminal — `npx -y tdcv2@0.3.5 …`
 (Node ≥ 20). Invoking the skill again runs nothing.
 `<skill>` below means this skill's own folder.
 
@@ -20,7 +20,7 @@ refusing `npx` ("running scripts is disabled") → `npx.cmd`, same arguments.
 
 ## The engine makes the rows — not you
 
-The delivered file is exactly what `npx -y tdcv2@0.3.4 <name>.tdc -o <file>` wrote. Nothing
+The delivered file is exactly what `npx -y tdcv2@0.3.5 <name>.tdc -o <file>` wrote. Nothing
 else produces or touches it:
 
 - no script (JS, Python, shell) that imports `tdcv2` and picks values itself;
@@ -43,20 +43,20 @@ post-process the output", "easier to make this column in Python".
   the config:
 
   ```js
-  // TypeScript / JS — npm i -D tdcv2@0.3.4
+  // TypeScript / JS — npm i -D tdcv2@0.3.5
   import { TDC } from "tdcv2";
   const users = new TDC({ configFile: "test/users.tdc" }).toArray(); // objects, values are strings
   ```
 
   ```python
-  # Python — pip install tdcv2==0.3.4 (into the project's environment)
+  # Python — pip install tdcv2==0.3.5 (into the project's environment)
   from tdcv2 import TDC
   users = TDC(config_file="tests/users.tdc").to_array()
   ```
 
   Java, C#, Rust, and the traps of each: `<skill>/from-code.md`.
 
-  **Red flag:** `npx -y tdcv2@0.3.4 users.tdc -o users.json` (or `.csv`) so that a test can
+  **Red flag:** `npx -y tdcv2@0.3.5 users.tdc -o users.json` (or `.csv`) so that a test can
   read it — that is the fixture to avoid; the test calls the loader above. If adding the
   library to the project fails, say so before falling back to a generated file.
 - **A person or another tool** wants a file — steps 1–7.
@@ -68,10 +68,10 @@ post-process the output", "easier to make this column in Python".
    `node <skill>/scripts/find-packs.mjs <words>` (`last name`, `email`). Never guess a
    path; the script lists the ones installed here.
 3. **Write `<name>.tdc`** next to the output file, with `count` and `seed` inside `<env>`.
-4. **Check:** `npx -y tdcv2@0.3.4 check --brief <name>.tdc`. Fix every line it prints — a
+4. **Check:** `npx -y tdcv2@0.3.5 check --brief <name>.tdc`. Fix every line it prints — a
    `help: did you mean …` part names the right spelling.
-5. **Look at a few rows:** `npx -y tdcv2@0.3.4 <name>.tdc --count 5`.
-6. **Generate** (only when the rows go to a file): `npx -y tdcv2@0.3.4 <name>.tdc -o <file>` — no `--count`/`--seed` flags, so the
+5. **Look at a few rows:** `npx -y tdcv2@0.3.5 <name>.tdc --count 5`.
+6. **Generate** (only when the rows go to a file): `npx -y tdcv2@0.3.5 <name>.tdc -o <file>` — no `--count`/`--seed` flags, so the
    config alone reproduces the file.
 7. **Prove it from the file, then report.** `node <skill>/scripts/peek.mjs <file>` —
    row count, and per column the distinct values, the split, the range; add
@@ -104,13 +104,12 @@ Editing an existing config: change only what was asked, then run steps 4–7 aga
 - `<sequence>` is a column; `<gen>` says where its values come from. `<block>` is the
   template of **one** output record; `${{Name}}` prints a column.
 - `parent="Gender.M"` draws a column **only** on rows where `Gender` is `M`; elsewhere it
-  is empty. Two mirrored columns printed side by side give exactly one value per row, and
-  it always fits the parent. This is how fields agree with each other.
+  is empty. Mirrored columns printed side by side give one value per row that fits the
+  parent — that is how fields agree.
 - `<before>` / `<after>` print once around the whole run (CSV header, JSON `[` `]`).
 - **It looks like XML and is not: nothing is escaped or expanded.** Write operators as
   they are — `if="Age < 18 || Age >= 65"`, `each="A >= 1 && A <= 9"`, `!=`, `!_last` —
-  and `"`, `<`, `>`, `&` as plain characters in `<data>`. `&lt;`, `&amp;&amp;`, `and`,
-  `=` are refused in expressions; an entity in `<data>` is printed as is.
+  and `"`, `<`, `>`, `&` as plain characters in `<data>`.
 
 ## Generators you need most
 
@@ -136,7 +135,7 @@ number), `_last` (last record: `<data if="!_last">,</data>` for JSON commas), `_
 - Unique by construction — the cheap way: put the running id in it,
   `${{First | lower}}.${{Last | lower}}${{Id}}@example.com`.
 - One drawn column unique: `uniq="true"` on its `<sequence>` — lists, packs, number
-  ranges; `regex` after 0.3.2 (`<sequence name="Code" uniq="true"><gen type="number" value="1000..9999"/></sequence>`);
+  ranges, `regex` (`<sequence name="Code" uniq="true"><gen type="number" value="1000..9999"/></sequence>`);
   not computed templates like `common.internet.email` (refused — use the counter).
 - A combination unique across rows: wrap its sequences in `<uniq>…</uniq>` (plain
   single-`<gen>` sequences only) — `reference/constructs/unique-values.md`.
@@ -145,6 +144,8 @@ number), `_last` (last record: `<data if="!_last">,</data>` for JSON commas), `_
 
 One record can print several lines: give the child list `repeat=`, put `each=` on its
 line. `${{_item_id}}` is a unique child key; the parent's columns keep their values.
+Tables of their own sizes, many-to-many links, or one table's field shown in another —
+`each` cannot: pools as tables, `<skill>/linked-tables.md`.
 
 ```xml
 <tdc>
@@ -179,7 +180,7 @@ More traps, each run on the engine — the silent ones first: `<skill>/traps.md`
 ## Other languages
 
 `local="fr"` needs the French pack. npm ships English, `common.*` and `usa.*`; the rest:
-`npx -y tdcv2@0.3.4 init --yes --no-examples` (once per project), then `npx -y tdcv2@0.3.4 pack add <locale>`.
+`npx -y tdcv2@0.3.5 init --yes --no-examples` (once per project), then `npx -y tdcv2@0.3.5 pack add <locale>`.
 `find-packs.mjs … --locale fr` says whether it is there.
 
 ## Reference

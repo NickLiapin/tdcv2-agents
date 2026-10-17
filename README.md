@@ -29,16 +29,16 @@ claude plugin install tdcv2@tdcv2
 where your agent looks for it:
 
 ```sh
-npx -y tdcv2-mcp@0.1.4 install-skill            # ~/.claude/skills/tdcv2
-npx -y tdcv2-mcp@0.1.4 install-skill --agents   # ~/.agents/skills/tdcv2
-npx -y tdcv2-mcp@0.1.4 install-skill --project  # ./.claude/skills/tdcv2
-npx -y tdcv2-mcp@0.1.4 install-skill --dir <skills folder>
+npx -y tdcv2-mcp@0.1.5 install-skill            # ~/.claude/skills/tdcv2
+npx -y tdcv2-mcp@0.1.5 install-skill --agents   # ~/.agents/skills/tdcv2
+npx -y tdcv2-mcp@0.1.5 install-skill --project  # ./.claude/skills/tdcv2
+npx -y tdcv2-mcp@0.1.5 install-skill --dir <skills folder>
 ```
 
 **Any MCP client** (Claude Desktop, Cursor, VS Code…):
 
 ```json
-{ "mcpServers": { "tdcv2": { "command": "npx", "args": ["-y", "tdcv2-mcp@0.1.4"] } } }
+{ "mcpServers": { "tdcv2": { "command": "npx", "args": ["-y", "tdcv2-mcp@0.1.5"] } } }
 ```
 
 On Windows use `"command": "npx.cmd"` if the client cannot start `npx`. Everything needs
@@ -57,10 +57,10 @@ folder it is started in.
 
 Network access, all of it:
 
-- the plugin starts the server with `npx -y tdcv2-mcp@0.1.4`, its own version
+- the plugin starts the server with `npx -y tdcv2-mcp@0.1.5`, its own version
   (`scripts/mcp-launch.mjs`), so the first start downloads that exact version and its
   dependencies, the TDCv2 engine among them, from the npm registry;
-- `npx -y tdcv2-mcp@0.1.4 …` in the commands above does the same, and so does `npx -y tdcv2@0.3.4 …`,
+- `npx -y tdcv2-mcp@0.1.5 …` in the commands above does the same, and so does `npx -y tdcv2@0.3.5 …`,
   the exact engine version the agent runs;
 - with an engine of another version, the agent may read that version's doc page from
   `raw.githubusercontent.com`;
@@ -73,7 +73,7 @@ Nothing else is fetched, and nothing is sent. The full policy: [PRIVACY.md](PRIV
 
 ## Versions
 
-This release, 0.1.4, is checked against TDCv2 0.3.4. The skill's reference is
+This release, 0.1.5, is checked against TDCv2 0.3.5. The skill's reference is
 built from the engine's documentation for that version; with another engine version the
 agent reads that version's pages, and the engine's own `check` has the last word.
 

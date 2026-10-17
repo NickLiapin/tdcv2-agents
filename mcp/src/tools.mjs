@@ -24,16 +24,18 @@ const OWN_ENGINE = dirname(dirname(fileURLToPath(import.meta.resolve('tdcv2'))))
 
 const engines = new Map();
 /**
- * The engine this project uses: its own install first, then one on PATH, else
- * the server's own. TDCV2_ENGINE=<package folder> pins one explicitly.
+ * The engine this project uses: its own install, else the server's own — the
+ * version this release was checked with. Not some other tdcv2 on PATH: its packs
+ * and behaviour may differ from what the skill and the tests promise.
+ * TDCV2_ENGINE=<package folder> pins one explicitly.
  */
 export async function engine() {
   if (!engines.has(ROOT)) {
     const pinned = process.env.TDCV2_ENGINE;
     const found = pinned
       ? await lib.engine.loadEngine({ cwd: pinned, path: '', fallback: pinned })
-      : await lib.engine.loadEngine({ cwd: ROOT, fallback: OWN_ENGINE });
-    if (!found) throw new Error('no tdcv2 engine could be loaded — install it in the project: npm i -D tdcv2@0.3.4');
+      : await lib.engine.loadEngine({ cwd: ROOT, path: '', fallback: OWN_ENGINE });
+    if (!found) throw new Error('no tdcv2 engine could be loaded — install it in the project: npm i -D tdcv2@0.3.5');
     engines.set(ROOT, found);
   }
   return engines.get(ROOT);
@@ -190,7 +192,7 @@ export async function tdcFindPacks({ query, locale, limit = 15 }) {
   const r = lib.packs.searchPacks(mod, { words: [query], locale, limit: Math.min(limit, 30) });
   const install = (loc) => [`Install it: tdc_pack_add with ids ["${loc}"] — it sets the project up for packs first if it is not yet.`];
   const text = lib.packs.formatPackSearch(r, { install }).join('\n')
-    .replaceAll('npx -y tdcv2@0.3.4 check --brief', 'tdc_check'); // this client checks through the tool
+    .replaceAll('npx -y tdcv2@0.3.5 check --brief', 'tdc_check'); // this client checks through the tool
   return { text, data: r };
 }
 
@@ -249,7 +251,7 @@ export async function tdcReadDocs({ page, query, offset = 0 }) {
     };
   }
   const p = readPage(page ?? 'guide');
-  if (!p) throw new ToolError(`no page "${page}". Pages: guide, traps, from-code, index, or a reference path from index such as generators/date`);
+  if (!p) throw new ToolError(`no page "${page}". Pages: guide, traps, from-code, linked-tables, index, or a reference path from index such as generators/date`);
   const chunk = p.text.slice(offset, offset + PAGE_CHUNK);
   const rest = p.text.length - offset - chunk.length;
   return {

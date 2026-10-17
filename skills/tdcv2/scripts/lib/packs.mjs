@@ -12,6 +12,15 @@
 const split = (s) => s.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase().split(/[^a-z0-9À-￿]+/).filter(Boolean);
 const baseOf = (loc) => (loc?.includes('-') ? loc.slice(0, loc.lastIndexOf('-')) : null);
 
+/** Words people ask with that the packs spell another way — tried only when the words as given find nothing. */
+const PHRASES = [
+  [/\b(family name|surname)\b/g, 'last name'], [/\b(given name|forename)\b/g, 'first name'],
+  [/\b(postal code|post code|postcode|zipcode|zip code)\b/g, 'zip'], [/\bcredit card\b/g, 'payment card'],
+  [/\b(medications?|medicines?|meds)\b/g, 'drug'], [/\bsex\b/g, 'gender'],
+  [/\b(mobile|cellphone|cell phone|telephone)\b/g, 'phone'], [/\b(employer|organi[sz]ation|firm)\b/g, 'company'],
+];
+const respell = (asked) => PHRASES.reduce((t, [re, to]) => t.replace(re, to), asked);
+
 /** One row per path a config writes, built once per engine. */
 const indexes = new WeakMap();
 /** Forget the index after packs were added or removed, so the next search sees them. */
@@ -67,9 +76,10 @@ function indexOf(tdc) {
  *   matches: {path, locales, description}[], more, partial,
  *   closest: {path, locales, description}[] }}
  */
-export function searchPacks(tdc, { words, locale, limit = 15 }) {
+export function searchPacks(tdc, { words, locale, limit = 15, respelled }) {
   const { byPath, installed, seesInstalled, version } = indexOf(tdc);
   words = words.flatMap((w) => w.toLowerCase().split(/[\s,]+/)).filter(Boolean);
+  const asked = words.join(' ');
   locale = locale?.toLowerCase();
   const describe = (row) => {
     const d = row.descs.get(locale) ?? row.descs.get(baseOf(locale)) ?? row.descs.get('en') ?? row.descs.get('') ?? [...row.descs.values()][0] ?? '';
@@ -106,9 +116,19 @@ export function searchPacks(tdc, { words, locale, limit = 15 }) {
   // Only packs that answer every word are an answer; the rest are a count, or —
   // when nothing answers every word — a labelled "closest".
   const full = scored.filter((h) => h.matched === words.length);
+  // The words as asked found nothing: try them the way the packs spell them, once.
+  if (!full.length && !respelled) {
+    const alt = respell(asked);
+    if (alt !== asked) {
+      const again = searchPacks(tdc, { words: [alt], locale, limit, respelled: asked });
+      if (again.matches.length) return again;
+    }
+  }
   const strip = ({ path, locales, description }) => ({ path, locales, description });
   const missingLocale = Boolean(locale && !installed.has(locale) && !(baseOf(locale) && installed.has(baseOf(locale))));
   return {
+    respelled: respelled ?? null,
+    dates: /\b(date|birthday|birthdate|dob|born|date of birth)\b/.test(respelled ?? asked),
     engine: version,
     seesInstalled,
     installed: [...installed].sort(),
@@ -124,8 +144,8 @@ export function searchPacks(tdc, { words, locale, limit = 15 }) {
 
 /** How to install a missing locale, from a terminal. The MCP server words it as its tool. */
 export const installLines = (locale) => [
-  'Install it:  npx -y tdcv2@0.3.4 init --yes --no-examples   (once per project, if tdcv2.config.json is missing)',
-  `             npx -y tdcv2@0.3.4 pack add ${locale}`,
+  'Install it:  npx -y tdcv2@0.3.5 init --yes --no-examples   (once per project, if tdcv2.config.json is missing)',
+  `             npx -y tdcv2@0.3.5 pack add ${locale}`,
 ];
 
 /** The result as the lines scripts/find-packs.mjs prints. */
@@ -144,14 +164,16 @@ export function formatPackSearch(r, { install = installLines } = {}) {
     } else {
       out.push(`This tdcv2 (${r.engine}) lists only its bundled packs (${r.installed.join(', ')}), not ones added with \`pack add\`.`);
       out.push(`If "${r.locale}" is already added: write the path you expect, set local="${r.locale}", and run`);
-      out.push('`npx -y tdcv2@0.3.4 check --brief` — paths differ between locales, and TDC217 names where it exists.');
+      out.push('`npx -y tdcv2@0.3.5 check --brief` — paths differ between locales, and TDC217 names where it exists.');
       out.push('If not added yet:');
     }
     out.push(...install(r.locale));
     if (r.seesInstalled) out.push('Then search again.');
     if (r.matches.length) out.push('', 'Locale-free packs that match meanwhile:');
   }
+  if (r.respelled && r.matches.length) out.push(`Nothing for "${r.respelled}"; the packs say "${r.words.join(' ')}":`);
   if (!r.matches.length) {
+    if (r.dates) out.push('Dates are not a pack — <gen type="date" from="1950-01-01" to="2005-12-31" format="YYYY-MM-DD"/> makes them.');
     if (!r.missingLocale) {
       out.push(`No pack matches all of "${r.words.join(' ')}"${r.locale ? ` in locale ${r.locale}` : ''}.`);
       if (r.closest.length) {
@@ -162,6 +184,11 @@ export function formatPackSearch(r, { install = installLines } = {}) {
     }
   } else {
     for (const h of r.matches) out.push(line(h));
+    // The same pack under several countries (cuba.phone, fiji.phone, …): the country belongs in the words.
+    const byTail = new Map();
+    for (const h of r.matches) { const [head, ...rest] = h.path.split('.'); if (rest.length) byTail.set(rest.join('.'), (byTail.get(rest.join('.')) ?? new Set()).add(head)); }
+    const [tail, heads] = [...byTail].sort((a, b) => b[1].size - a[1].size)[0] ?? [];
+    if (heads?.size >= 3) out.push(`Several countries have "${tail}" — put the country in the words, e.g. "${[...heads][0]} ${r.words.join(' ')}".`);
     if (r.more) out.push(`… ${r.more} more; narrow the words or raise --limit.`);
     if (r.partial) out.push(`(${r.partial} more match only some of the words — search them one at a time to see those.)`);
   }

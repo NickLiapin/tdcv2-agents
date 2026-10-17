@@ -28,10 +28,14 @@ const opt = (name, dflt) => {
 const column = opt('column');
 const sampleRows = Number(opt('rows', 3));
 const file = argv[0];
-if (!file) {
-  console.log('usage: peek.mjs <file> [--column <name>] [--rows 3]');
-  process.exit(2);
-}
+const USAGE = `usage: peek.mjs <file> [--column <name>] [--rows 3]
+
+  CSV, JSON (an array, one object per line, or an object of arrays — one table each,
+  and every <x>_id checked against <x>s.id), SQL INSERTs, anything else by lines.
+  --column   one column in full    --rows   sample rows to show (default 3)
+  Exit 1 when the file is not what it claims, or a link points nowhere.`;
+if (file === '--help' || file === '-h') { console.log(USAGE); process.exit(0); }
+if (!file) { console.log(USAGE); process.exit(2); }
 const { lines, ok } = summarize(readFileSync(file, 'utf8'), { name: basename(file), ext: extname(file), column, rows: sampleRows });
 for (const l of lines) console.log(l);
 if (!ok) process.exit(1);

@@ -1,6 +1,6 @@
 {
   "name": "tdcv2-mcp",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "MCP server for TDCv2, a fake and test data generator: agents write a .tdc config and generate realistic mock, synthetic and test data locally — CSV, JSON, SQL; same config, same bytes.",
   "type": "module",
   "bin": {
@@ -36,7 +36,7 @@
   "license": "MIT",
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.30.1",
-    "tdcv2": "0.3.4",
+    "tdcv2": "0.3.5",
     "zod": "4.6.5"
   },
   "mcpName": "io.github.NickLiapin/tdcv2",

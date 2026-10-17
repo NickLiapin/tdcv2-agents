@@ -10,7 +10,7 @@ tdcv2 <input.tdc> [options]
 > [!NOTE]
 > **Where `tdcv2` comes from**
 >
-> `npm install -D tdcv2@0.3.4`, `pip install tdcv2==0.3.4` and `cargo install tdcv2@0.3.4` each put `tdcv2` on
+> `npm install -D tdcv2@0.3.5`, `pip install tdcv2==0.3.5` and `cargo install tdcv2@0.3.5` each put `tdcv2` on
 > your PATH from the package that carries the library. Maven and NuGet have no equivalent of
 > npm's `bin`, so for Java and C# the command line is a second artefact —
 > [Installation](../getting-started/installation.md) has the tab for each. An alias makes
@@ -152,11 +152,12 @@ itself whether to parallelize. In short:
 
   `--engine 2` **refuses** anything it cannot stream, so a measurement measures what it says
   it does. `--engine 3` refuses in one case only — a `uniq` too tight for its bounded repair
-  — and otherwise falls back to the in-memory engine and prints its bytes, exit 0 and no
-  message. That is narrow on purpose: the shapes engine 3 falls back on are the ones the
-  lazy path cannot express at all, and covering them is what engine 3 is for. It does mean a
-  memory measurement taken with `--engine 3` on a `stat`, a running total or a simple `uniq`
-  is a measurement of engine 1. [Which engine runs your
+  — and otherwise hands the run to the in-memory engine, which prints the bytes: exit 0, and
+  a note on stderr that names the reason. That is narrow on purpose: the shapes engine 3 hands
+  over are the ones the lazy path cannot express at all, and covering them is what engine 3
+  is for. It does mean a memory measurement taken with `--engine 3` on a `stat`, a running
+  total or a simple `uniq` is a measurement of engine 1 — which is what the note is there to
+  say. [Which engine runs your
   config](../guides/large-outputs.md#which-engine-runs-your-config) lists the shapes.
 
 TDC works out how many threads fit in this machine's RAM and uses that many, so on a weak
@@ -268,7 +269,7 @@ or a CI step: it answers "would this run?" without spending the time to run it.
 tdcv2 check demo.tdc
 ```
 
-Everything goes to stderr — a valid config gets one line, an invalid one gets the same
+Everything goes to stderr — a valid config gets two lines, an invalid one gets the same
 diagnostics `tdcv2 demo.tdc` would print. **Nothing goes to stdout**, deliberately: a
 hook's stdout is noise, and a caller that wants the data runs the generator instead.
 
@@ -276,7 +277,13 @@ hook's stdout is noise, and a caller that wants the data runs the generator inst
 
 ```
 tdcv2: demo.tdc is valid
+tdcv2: runs on engine 2 (streaming): every column can be built one row at a time
 ```
+
+The second line says which engine will run the config — 1 in memory, 2 streaming, 3 exact
+on disk — and why it went there: `uniq="true" on "Code"`, say, sends a run to engine 1.
+That is where its memory goes, so it is worth knowing before a big run. `--brief` leaves
+the line out.
 
 Warnings do not fail the check — they are printed and the exit code stays `0`, because a
 warning describes something that works but probably is not what you meant. Only an error

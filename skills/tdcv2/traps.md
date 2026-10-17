@@ -1,6 +1,6 @@
 # Traps — what `check` does and does not tell you
 
-Every example below was run through `tdcv2` 0.3.4; the `check` lines and outputs are
+Every example below was run through `tdcv2` 0.3.5; the `check` lines and outputs are
 what the engine printed. Generated from the engine's answers — do not edit by hand.
 
 ## Silent — `check` is clean, the data is not what was meant

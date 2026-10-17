@@ -1,7 +1,7 @@
 {
   "name": "tdcv2",
   "displayName": "TDCv2 — Fake & Test Data Generator",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Data generator for fake, mock, synthetic and test data: realistic names, emails, addresses, phone numbers, IBANs and more for 95 languages and 198 countries, as CSV, JSON, SQL inserts or any text format. The agent describes the data in a small .tdc config and the TDCv2 engine generates it on your machine — related tables, exact proportions, the same file every time. A Faker alternative for whole datasets: database seeds, test fixtures, demo data.",
   "author": {
     "name": "Nikolai Liapin",
