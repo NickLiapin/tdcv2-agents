@@ -11,12 +11,18 @@ bytes — a gigabyte of output from the same config comes out identical in each.
 Each one also carries the same command line, so nothing needs another
 language's toolchain to run a config.
 
-All five are published: **0.3.5** on npm, PyPI, NuGet and crates.io, and
+All five are published: **0.3.6** on npm, PyPI, NuGet and crates.io, and
 **0.3.5** on Maven Central — usually the same number, occasionally one
 behind, because Central caps how many releases it accepts from a project each month
 (see [the Java page](../bindings/java.md)). Equal version numbers are not a
-coincidence: where they match, `tdcv2 0.3.5` from any of them answers a
+coincidence: where they match, `tdcv2 0.3.6` from any of them answers a
 config the same way, down to the byte.
+
+> [!TIP]
+> **Working with a coding agent?**
+>
+> Claude Code, Codex, Cursor, VS Code and Gemini CLI can write and run TDC configs for you.
+> The skill and the MCP server that teach them how are in [AI Agents](../ai-agents/overview.md).
 
 Pick your ecosystem. To try TDC without committing to a language, use the npm
 tab: it includes a wrapper script that runs a config without any code of your
@@ -27,8 +33,8 @@ own.
 **Requirements:** Node.js **20.0.0** or newer.
 
 ```bash
-npm install -D tdcv2@0.3.5
-npx tdcv2@0.3.5 init
+npm install -D tdcv2@0.3.6
+npx tdcv2@0.3.6 init
 ```
 
 That is the whole installation. `init` writes a config and a `tdcv2-examples/`
@@ -72,7 +78,7 @@ lives in the [CLI reference](../reference/cli.md).
 One command gets you both the library and the `tdcv2` command:
 
 ```bash
-pip install tdcv2==0.3.5
+pip install tdcv2==0.3.6
 tdcv2 init
 ```
 
@@ -130,7 +136,7 @@ The DSL and behavior are identical to the npm version. See
 The library is one package:
 
 ```bash
-dotnet add package Tdcv2 --version 0.3.5
+dotnet add package Tdcv2 --version 0.3.6
 ```
 
 A starter set of data packs is embedded in the assembly, so it works with
@@ -141,7 +147,7 @@ so the CLI is a .NET tool package of its own — install it globally and the com
 is on your PATH:
 
 ```bash
-dotnet tool install --global Tdcv2.Cli --version 0.3.5
+dotnet tool install --global Tdcv2.Cli --version 0.3.6
 tdcv2 init
 ```
 
@@ -149,13 +155,13 @@ The DSL and behavior are identical to the npm version.
 
 #### Rust — Cargo
 
-**Requirements:** Rust **1.74** or newer.
+**Requirements:** Rust **1.82** or newer.
 
 One crate carries both the library and the command line:
 
 ```bash
-cargo add tdcv2@0.3.5      # as a dependency
-cargo install tdcv2@0.3.5  # as a command
+cargo add tdcv2@0.3.6      # as a dependency
+cargo install tdcv2@0.3.6  # as a command
 tdcv2 init
 ```
 
@@ -218,10 +224,10 @@ second artefact:
 
 | Installed with | The command                                                                                                |
 | :------------- | :--------------------------------------------------------------------------------------------------------- |
-| Node.js        | `npx tdcv2@0.3.5 tdcv2-examples/01-starter.tdc`                                                                  |
+| Node.js        | `npx tdcv2@0.3.6 tdcv2-examples/01-starter.tdc`                                                                  |
 | Python         | `tdcv2 tdcv2-examples/01-starter.tdc`                                                                      |
-| Rust           | `tdcv2 tdcv2-examples/01-starter.tdc`, after `cargo install tdcv2@0.3.5`                                         |
-| C#             | `tdcv2 demo.tdc`, after `dotnet tool install --global Tdcv2.Cli --version 0.3.5`                                           |
+| Rust           | `tdcv2 tdcv2-examples/01-starter.tdc`, after `cargo install tdcv2@0.3.6`                                         |
+| C#             | `tdcv2 demo.tdc`, after `dotnet tool install --global Tdcv2.Cli --version 0.3.6`                                           |
 | Java           | `java -jar tdcv2-0.3.5-cli.jar tdcv2-examples/01-starter.tdc` — the `cli` classifier of the library's own coordinates            |
 
 From the repository root, `./run demo.tdc` is the shortest of them all.
@@ -351,7 +357,7 @@ tdcv2 pack add en usa # download and wire up the packs you want
 ```
 
 > [!NOTE]
-> On an npm install every one of those is `npx tdcv2@0.3.5 …` — the command lives in
+> On an npm install every one of those is `npx tdcv2@0.3.6 …` — the command lives in
 > `node_modules/.bin`. pip, cargo and `dotnet tool install -g` put `tdcv2` on your
 > PATH, so there the line above is exactly what you type.
 
@@ -362,17 +368,20 @@ tdcv2 pack add en usa # download and wire up the packs you want
 ```
 Available data packs:
 
-common ✓ installed Common (locale-agnostic) (46.5 KB)
-Generators bound to neither a language nor a country: uuid,
-hashes, ISBN/ISSN, GTIN/UPC/EAN, card PANs, MRZ, IPv4/IPv6/MAC,
-semver, and more.
+  common                           ✓ installed  Common (locale-agnostic) (46.7 KB)
+                                   Generators bound to neither a language nor a
+                                   country: uuid, hashes, ISBN/ISSN,
+                                   GTIN/UPC/EAN, card PANs, MRZ, IPv4/IPv6/MAC,
+                                   semver, and more.
 
-…
+  …
 
-usa ✓ installed Usa (country) (18.8 KB)
-Data specific to the USA regardless of the language it is
-written in: SSN/ITIN/EIN, ZIP codes, states, street names, ABA
-routing numbers, phone format, license plates.
+  usa                              ✓ installed  United States (country) (21.5 KB)
+                                   Data specific to the USA regardless of the
+                                   language it is written in: SSN/ITIN/EIN, NPI
+                                   provider numbers, ZIP codes, states, street
+                                   names, ABA routing numbers, phone numbers
+                                   with real area codes, license plates.
 ```
 
 Packs **compose** along independent axes — language, country, and a

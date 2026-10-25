@@ -10,7 +10,7 @@ tdcv2 <input.tdc> [options]
 > [!NOTE]
 > **Where `tdcv2` comes from**
 >
-> `npm install -D tdcv2@0.3.5`, `pip install tdcv2==0.3.5` and `cargo install tdcv2@0.3.5` each put `tdcv2` on
+> `npm install -D tdcv2@0.3.6`, `pip install tdcv2==0.3.6` and `cargo install tdcv2@0.3.6` each put `tdcv2` on
 > your PATH from the package that carries the library. Maven and NuGet have no equivalent of
 > npm's `bin`, so for Java and C# the command line is a second artefact —
 > [Installation](../getting-started/installation.md) has the tab for each. An alias makes

@@ -242,3 +242,6 @@ patient rows at the same cost as a thousand, and works on every
   that differs from `if`
 - [Linking pools together](linking.md) — several pools, a pool that draws from a pool,
   and chains that run three deep
+- [Printing a whole pool](../constructs/relational-tables.md#a-whole-pool-record-by-record) —
+  `<line each="Doctors">` writes the pool record by record: a lookup table, or an array in a
+  JSON document

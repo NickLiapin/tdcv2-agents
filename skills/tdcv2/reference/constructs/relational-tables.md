@@ -7,7 +7,9 @@ all from a single config.
 
 The [`each`](../reference/attributes.md) attribute repeats a
 [`<line>`](../core-concepts/output-formatting.md) once per element of a list. One
-record turns into **N output rows** — a normalized table ready for a database.
+record turns into **N output rows** — a normalized table ready for a database. Pointed at a
+[`<pool>`](../pools/overview.md) instead, it prints the pool record by record, so a lookup
+table comes out of the same config as the rows that reference it.
 
 > [!NOTE]
 > Example outputs below are illustrative. The exact _values_ a generator emits can
@@ -22,13 +24,13 @@ record turns into **N output rows** — a normalized table ready for a database.
 
 ## At a glance
 
-| Where      | What                                                                                   |
-| :--------- | :------------------------------------------------------------------------------------- |
-| Applies on | [`<line>`](../core-concepts/output-formatting.md)                                     |
-| Value      | The **name** of a sequence whose generator has [`repeat`](../reference/attributes.md) |
-| Effect     | The line is emitted once per element of that list                                      |
+| Where      | What                                                                                                                              |
+| :--------- | :-------------------------------------------------------------------------------------------------------------------------------- |
+| Applies on | [`<line>`](../core-concepts/output-formatting.md)                                                                                |
+| Value      | The **name** of a sequence whose generator has [`repeat`](../reference/attributes.md), or of a [`<pool>`](../pools/overview.md) |
+| Effect     | The line is emitted once per element of that list, or once per record of that pool                                              |
 
-The target sequence **must** carry [`repeat`](../reference/attributes.md) — that's
+A target sequence **must** carry [`repeat`](../reference/attributes.md) — that's
 what makes it a list to iterate over. Point `each` at anything else and TDC tells you
 why (see the last section below).
 
@@ -115,6 +117,25 @@ every order row, not the element. If iterating rebound `Id` to the element, ever
 would point at the wrong customer. The parent's columns stay fixed; only the iterated
 name and `_item` / `_item_id` advance.
 
+The walked name also carries the line's **positions**:
+
+| Token                   | What it means                                                           |
+| :---------------------- | :---------------------------------------------------------------------- |
+| `${{VipOrders._item}}`  | the number of this line among the lines the `each` prints: `1`, `2`, `3` |
+| `${{VipOrders._first}}` | `true` on the first line printed, `false` on the rest                   |
+| `${{VipOrders._last}}`  | `true` on the last line printed, `false` on the rest                    |
+
+They are named after the walked list, so they never mix with the run's own
+[`_first` and `_last`](../reference/builtins.md), which mark the first and last
+**record**. `_last` on a walked list is what puts a comma between elements and not after
+the final one: `<data if="!VipOrders._last">,</data>`.
+
+An [`if=`](../core-concepts/output-formatting.md) on an `each` line, and on every `<data>`
+inside it, is asked of **each element**, with the element in scope —
+`<line each="VipOrders" if="VipOrders > 5000">` prints only the large orders. The positions
+count the lines that survive the filter, so `VipOrders._last` is the last line actually
+printed.
+
 ## About the order numbers
 
 Look at the primary keys: `4, 5`, then `11, 12, 13`, then `16, 17`. They **rise**, but
@@ -134,6 +155,151 @@ pointing at a nonexistent customer.
 **Why/when:** trust `_item_id` as a stable, unique, parallel-safe surrogate key.
 Reach for `_item` instead when you want a per-record sequence number (`1, 2, 3` that
 restarts on every parent).
+
+## A whole pool, record by record
+
+A [`<pool>`](../pools/overview.md) is a small table built once, before the rows, and the
+rows draw their members from it. `each` with the pool's name prints that table: one line per
+record, in pool order, with every field read as `${{Pool.field}}`. That is the lookup table
+the rows' foreign keys point at:
+
+```xml
+<env count="4" seed="visits" local="en">
+    <pool name="Doctors" count="3">
+        <sequence name="id"><gen type="increment" value="1"/></sequence>
+        <sequence name="last"><gen type="template" value="person.lastName"/></sequence>
+    </pool>
+    <sequence name="Id"><gen type="increment" value="1"/></sequence>
+    <sequence name="Doc"><gen type="pool" value="Doctors"/></sequence>
+    <before>
+        <line each="Doctors"><data>INSERT INTO doctors VALUES (${{Doctors.id}}, '${{Doctors.last | sql}}');</data></line>
+    </before>
+</env>
+<block>
+    <line><data>INSERT INTO visits VALUES (${{Id}}, ${{Doc.id}});</data></line>
+</block>
+```
+
+`./run visits.tdc`
+
+```
+INSERT INTO doctors VALUES (1, 'Smith');
+INSERT INTO doctors VALUES (2, 'Johnson');
+INSERT INTO doctors VALUES (3, 'Williams');
+INSERT INTO visits VALUES (1, 1);
+INSERT INTO visits VALUES (2, 3);
+INSERT INTO visits VALUES (3, 2);
+INSERT INTO visits VALUES (4, 2);
+```
+
+Every doctor a visit names exists in `doctors`, because both come from the same pool. The
+pool is the same on every row, so a line walking it prints the whole table each time it
+runs: put it in [`<before>`](../core-concepts/output-formatting.md) or `<after>`, or in a
+run with `count="1"`, to print it once.
+
+A field that draws from another pool is a record one level down, and reads the same way:
+`${{Doctors.dept.name}}`. The positions work as on a list — `Doctors._last` is the last
+record printed — and so does a filter:
+
+```xml
+<line><data>[</data></line>
+<line each="Doctors" if="Doctors.shift == day"><data>  ${{Doctors.last | json}}</data><data if="!Doctors._last">,</data></line>
+<line><data>]</data></line>
+```
+
+`./run positions.tdc`
+
+```
+[
+  "Johnson",
+  "Smith"
+]
+```
+
+The pool holds five doctors, and the last of them works nights, so the filter drops that
+record. `Doctors._last` falls on `Smith`, the last record printed, and the array closes
+without a trailing comma. [Output formats → JSON](../guides/output-formats.md#json) builds
+a whole document out of two pools this way.
+
+## Several lines per element: `<group>`
+
+`each` on a `<line>` repeats **one** line. When an element needs several — a department, then
+its doctors, then a closing bracket — wrap the lines in a `<group>`. `<group each="…">` prints
+everything inside it once per element, in order, with that element in scope for every line:
+
+```xml
+<block>
+    <line><data>[</data></line>
+    <group each="Depts">
+        <line><data>  {"name": ${{Depts.name | json}}, "doctors": [</data></line>
+        <group each="Doctors" if="Doctors.dept.id == Depts.id">
+            <line><data>    {"name": ${{Doctors.last | json}},</data></line>
+            <line><data>     "languages": ${{Doctors.languages | json:;}}}</data><data if="!Doctors._last">,</data></line>
+        </group>
+        <line><data>  ]}</data><data if="!Depts._last">,</data></line>
+    </group>
+    <line><data>]</data></line>
+</block>
+```
+
+The `Depts` and `Doctors` pools are the ones from
+[Output formats → Two tables in one document](../guides/output-formats.md#two-tables-in-one-document).
+
+`./run nested.tdc`
+
+```
+[
+  {"name": "Cardiology", "doctors": [
+    {"name": "Williams",
+     "languages": ["English", "Polish"]}
+  ]},
+  {"name": "Neurology", "doctors": [
+    {"name": "Smith",
+     "languages": ["English"]},
+    {"name": "Johnson",
+     "languages": ["English"]}
+  ]}
+]
+```
+
+The outer group prints three lines for each department. Inside it, `${{Depts.name}}` is the
+department being printed, so the inner group, which walks all the doctors, keeps the ones whose
+`dept.id` matches. Each level counts its own positions: `Doctors._last` is the last doctor printed
+**in this department** and starts over in the next one, and `Depts._last` is the last department.
+That is why every comma lands where JSON needs it. A group can hold lines and other groups, as
+deep as the document goes.
+
+Without `each`, a group's `if=` keeps or drops all of its lines at once — one condition instead of
+the same one copied onto every line:
+
+```xml
+<block>
+    <line><data>#${{Id}} ${{Kind}}</data></line>
+    <group if="Kind == visit">
+        <line><data>  room ${{Room}}</data></line>
+        <line><data>  check-in at the front desk</data></line>
+    </group>
+</block>
+```
+
+`./run contacts.tdc`
+
+```
+#1 call
+#2 visit
+  room 122
+  check-in at the front desk
+#3 visit
+  room 116
+  check-in at the front desk
+#4 call
+```
+
+A line inside a group keeps its own `if=` and may walk a list of its own with `each`. A group's
+`if=` can read the element it walks but not its positions, which count the elements that `if=`
+keeps (`TDC215`). A typed column — `<data name="…">` — cannot sit anywhere inside a group
+(`TDC209`): the group prints its lines several times or not at all, and a column has one cell per
+record.
 
 ## A lifecycle, not just a list
 
@@ -245,8 +411,9 @@ The same shape covers anything with a fixed vocabulary of steps: a support ticke
 | What                                                                     | Why                                                                                                         | Error    |
 | :----------------------------------------------------------------------- | :---------------------------------------------------------------------------------------------------------- | :------- |
 | `each` on a sequence with **no** [`repeat`](../reference/attributes.md) | there's nothing to iterate over                                                                             | `TDC207` |
-| `each` on a name that doesn't exist                                      | the sequence is undeclared                                                                                  | `TDC206` |
-| `<data name="…">` inside an `each` line                                  | a named `<data>` is a **column** for Parquet, and Parquet collects columns per record, not per iterated row | `TDC209` |
+| `each` on a name that is neither a sequence nor a pool                   | nothing by that name exists, so the line would print nothing at all                                         | `TDC206` |
+| `<data name="…">` inside an `each` line or a `<group>`                   | a named `<data>` is a **column** for Parquet, and Parquet collects columns per record, not per iterated row | `TDC209` |
+| `Orders._last` in the `if=` of the same `each` line or group              | the positions count the lines that `if=` lets through, so they cannot decide which lines those are          | `TDC215` |
 
 `./run broken.tdc  (each on a non-list)`
 
@@ -269,3 +436,5 @@ formats — SQL, CSV, JSON lines — where one record must become several physic
 - **[`repeat` / `separator`](../reference/attributes.md)** — how a sequence becomes a
   list in the first place.
 - **[Builtins](../reference/builtins.md)** — `_item`, `_item_id`, `_count` and friends.
+- **[Pools](../pools/overview.md)** — the tables an `each` line can print, and how rows draw
+  from them.

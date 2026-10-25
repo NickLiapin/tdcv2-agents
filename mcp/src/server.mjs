@@ -24,7 +24,7 @@ const server = new McpServer(
       'installs a missing language or country), tdc_check until ' +
       'clean, and tdc_generate to preview rows or write the file. Hand over the config with the data; keep count and seed ' +
       'inside <env> so it reproduces the file. If the TDCv2 skill is loaded too, these tools are its steps: its ' +
-      '`npx -y tdcv2@0.3.5 …` commands and these tools run the same engine — use either, the tools where there is no terminal.',
+      '`npx -y tdcv2@0.3.6 …` commands and these tools run the same engine — use either, the tools where there is no terminal.',
   },
 );
 

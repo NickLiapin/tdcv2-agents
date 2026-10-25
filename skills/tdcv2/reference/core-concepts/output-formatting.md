@@ -67,9 +67,11 @@ with its own `Name` and `Age`.
 attributes. Its only job is to hold the lines of a single record, which the renderer
 repeats `count` times.
 
-The only child it allows is `<line>`. A stray tag directly inside `<block>` is an error,
-not a silent skip — that catches a misplaced [`<gen>`](../generators/overview.md) or a
-mistyped tag before it corrupts your output:
+It holds `<line>`s, and [`<group>`](../constructs/relational-tables.md#several-lines-per-element-group)s
+of them — several lines printed once per element of a list or pool, or kept and dropped
+together by one condition. A stray tag directly inside `<block>` is an error, not a silent
+skip — that catches a misplaced [`<gen>`](../generators/overview.md) or a mistyped tag
+before it corrupts your output:
 
 `./run demo.tdc`
 
@@ -416,6 +418,13 @@ Two caveats, both enforced:
   a fixture is error `TDC131`. This used to fail silently: a `value="500..999"`
   generator in a fixture always emitted `500`, the low bound, which looked like a real
   value.
+- **Conditions work in fixtures, and fixtures are checked.** A `<line if="…">` or a
+  `<data if="…">` in a fixture reads the same row as its `${{Name}}` — `<before>` the first,
+  `<after>` the last — so `<before><line if="Mode == full">` prints a header only when the
+  first record asks for it. `check` reads fixture lines the way it reads the block's: a
+  misspelt name is `TDC193`, a condition that does not parse is `TDC100`. A
+  [`<group>`](../constructs/relational-tables.md#several-lines-per-element-group) works in a
+  fixture too, so a lookup table can be printed once, ahead of the records.
 
 ## A custom interpolation marker
 

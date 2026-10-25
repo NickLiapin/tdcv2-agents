@@ -42,8 +42,9 @@ ships no month names, so the dates come out English), `TDC284` (a `secret=` writ
 the config as a literal — a key travels wherever the config does), `TDC301` (a share list
 that leaves a declared value at 0%, so it can never be drawn), `TDC309` (an `<env>` with no
 `seed=`, so every run draws a different file), `TDC310` (`mm` — minutes — in a date format
-with no hour, which is almost always the month) and `TDC311` (an XML entity in `<data>`,
-printed as written). Each says as much in its row below.
+with no hour, which is almost always the month), `TDC311` (an XML entity in `<data>`,
+printed as written) and `TDC312` (`| json` on a list without its separator, which prints
+the list as one string). Each says as much in its row below.
 
 The numbers run roughly in the order a config is checked — structure first, then
 generators, then everything built on top of them — but a number is an identifier, not a
@@ -188,7 +189,7 @@ and [`<gen type="running">`](../generators/running.md).
 | `TDC237` | `accumulate=` on a generator with no `repeat=`                                        | There is no list to accumulate. Add `repeat="N"`, or drop `accumulate=`. (`type="running"` is exempt — it accumulates down a column) |
 | `TDC238` | `accumulate=` names an operation that does not exist                                  | One of `sum`, `min`, `max`                                                                                                           |
 | `TDC239` | `<gen type="running">` does not say what (`of=`) or how (`accumulate=`) to accumulate | A running total reads another column and draws nothing of its own, so both are required                                              |
-| `TDC240` | `of=` or `reset=` names a column not declared above                                   | The total is built from a column that already exists — the same rule `parent=` follows                                               |
+| `TDC240` | `of=`, `reset=` or a column in `plus=` names a column not declared above              | The total is built from a column that already exists — the same rule `parent=` follows. A `plus="Length m"` column must also hold one number per row, not a `repeat=` list |
 
 ## `<compute>`
 
@@ -278,7 +279,7 @@ but the combination it asks for can't be carried out.
 | `TDC204` | `repeat` is used on a generator that can't repeat                | The message names the type                                               |
 | `TDC206` | `each=""` names no sequence                                      | Name the list to walk                                                    |
 | `TDC207` | `each` names a single-value sequence                             | It has to be a list — add `repeat` to the source                         |
-| `TDC209` | A named `<data>` sits inside an `each=` line                     | That line produces several rows, so a column name is ambiguous           |
+| `TDC209` | A named `<data>` sits inside an `each=` line or a `<group>`      | That line produces several rows, or none, so a column name is ambiguous  |
 | `TDC211` | `weight` is used on a generator other than `file`                | Weights come from a CSV column                                           |
 | `TDC212` | `weight` without `column`                                        | The weights live in a second column, which has to be named               |
 | `TDC213` | `weight` is combined with `order`                                | `order` walks the rows by position; weighting picks them by frequency    |
@@ -302,7 +303,7 @@ but the combination it asks for can't be carried out.
 | `TDC261` | `at()` is given an index that is not one | An index is a whole number, zero or more. Past the end is empty text on purpose — rows made by `repeat="1..4"` have different lengths — but `-1`, `1.5` and `"one"` are mistakes, and each of them used to produce that same blank column |
 | `TDC262` | `<gen type="stat">` does not say what (`of=`) or which statistic (`op=`), or names one that does not exist | A statistic reads another column and draws nothing of its own, so both are required. `op=` is one of `sum`, `mean`, `median`, `min`, `max`, `count`, `stddev`; `decimals=` is 0 to 10 |
 | `TDC263` | `${{Name}}` in an attribute that does not expand it | Interpolation reaches the text inside `<data>` and `<gen type="template" value=>`, and nowhere else — anywhere else the braces are literal characters. To make one column depend on another, read it in an `if=` condition, or build the value in a `<compute>` sequence |
-| `TDC264` | `<gen type="date" of="…">` is written wrong | An offset needs `plus=` (`7d`, `3..10d`, `1..3mo`, `-10..-3d`), written smallest bound first, in a unit `step=` also uses. The attributes that bound the generator's OWN draw — `value`, `from`, `to`, `range`, `oldest`, `youngest`, `order`, `step` — say nothing once `of=` has placed the date relative to another column, so they are refused rather than ignored. The mirror is refused too: `plus=` on a date with no `of=` has nothing to be far from |
+| `TDC264` | `<gen type="date" of="…">` is written wrong | An offset needs `plus=` (`7d`, `3..10d`, `1..3mo`, `-10..-3d`, or a column and a unit: `Length m`), written smallest bound first, in a unit `step=` also uses. The attributes that bound the generator's OWN draw — `value`, `from`, `to`, `range`, `oldest`, `youngest`, `order`, `step` — say nothing once `of=` has placed the date relative to another column, so they are refused rather than ignored. The mirror is refused too: `plus=` on a date with no `of=` has nothing to be far from |
 | `TDC265` | `<assert>` has no condition | An assertion is the one construct whose whole worth is that it fails, and without `that=` it never can. Write the property the run must have, in the `if=` language, over whole-run columns |
 | `TDC266` | `<assert>` has no message | `says=` is what a reader is told when it fires, months later, in a CI log. An expression on its own leaves them to work out what it was defending |
 | `TDC267` | _(second meaning)_ `uniq="true"` on a `<sequence>` wrapping a `<distinct>` | `<distinct>` repairs one record so its fields differ; `uniq` then rearranges the finished columns and knows nothing about which pairings the repair ruled out, so it undoes them. Keep one — or give each field its own `<sequence>`, wrap those in `<uniq>`, and put the `<distinct>` at env level |
@@ -351,6 +352,7 @@ but the combination it asks for can't be carried out.
 | `TDC309` | _(warning)_ An `<env>` with no `seed=` | Every run draws a different file, so a config handed to someone else will not give them the data you saw. Add `seed="…"` — any text will do — and the same config gives the same bytes every time, in all five implementations. `check` and the editor show this; a run prints the seed it drew instead, and `--seed` takes the warning back. Leave the seed out only when fresh data on every run is the point |
 | `TDC310` | _(warning)_ `mm` or `m` — minutes — in a date `format=` that has no hour or second | `%m` and a hand-written `yyyy-mm-dd` mean the month; here `mm` is minutes, and a date without a time prints `00` for them on every row — `format="YYYY-mm-DD"` gave `2025-00-24`. Write `MM` for the month, or put the hour beside the minutes: `HH:mm`. Checked on a date measured from another (`of=`/`plus=`) too |
 | `TDC311` | _(warning)_ An XML entity — `&quot;`, `&lt;`, `&gt;`, `&amp;`, `&apos;` or a numeric `&#…;` — inside `<data>` | TDC expands no entities, so `&quot;` reaches the output as six characters and `{&quot;a&quot;: 1}` is not JSON. `<data>` takes `"` `<` `>` `&` `'` as they are: write the character. If the entity is what the output should hold — HTML, say — leave it and ignore the warning |
+| `TDC312` | _(warning)_ `\| json` on a list, without the list's separator or with a different one | A `repeat=` column is one cell holding a list joined with its `separator`, and `\| json` reads text: `${{Langs \| json}}` prints `"English;Spanish"` as one string, and `json:,` on a list joined with `;` prints a one-element array. Both parse, so the mistake would surface only in whatever reads the file. Write the column's separator: `${{Langs \| json:;}}`. Checked for a sequence, a pool field and the same field read through a reference or on an `each` line |
 
 ## See also
 

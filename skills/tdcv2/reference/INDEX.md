@@ -1,6 +1,6 @@
 # TDCv2 reference — index
 
-Built from the engine's docs at v0.3.5 (2026-10-17); they say they cover TDC 0.3.5 (updated 17 October 2026).
+Built from the engine's docs at v0.3.6 (2026-10-25); they say they cover TDC 0.3.6 (updated 25 October 2026).
 Open a page with the Read tool: `reference/<path>`. Pages link to each other by relative path.
 For another engine version (the one the project itself uses), the same page of that version:
 `https://raw.githubusercontent.com/NickLiapin/tdcv2/v<version>/docs/<path>`. What `check` says beats any page.
@@ -15,6 +15,13 @@ For data-pack addresses, run `scripts/find-packs.mjs` — it reads what is insta
 - `getting-started/quick-api.md` — **Quick API — one value at a time.** Sometimes you don't want a dataset. You want a surname, here, on this line of a test — the job a faker library does. TDC answers that from the same data packs its configs draw on, so the name in your unit test and the name in your million-row fixture come from one list.
 - `getting-started/first-data.md` — **Your first dataset.** You describe what a row is made of, and the engine builds as many rows as you ask for. The same seed always returns the same output, and the shape of that output — plain text, CSV, JSON, SQL — is yours to define with a row template.
 - `getting-started/editor-support.md` — **Editor support.** The npm package ships two executables. tdcv2 generates data; tdcv2-lsp is a language server that gives any LSP-speaking editor live error checking, completion, hover, go-to-definition, find-references, rename and formatting for .tdc files.
+
+## AI Agents
+
+- `ai-agents/overview.md` — **TDC for AI agents.** A coding agent can write TDC configs for you. You ask in plain words — "500 customers from 20 countries as CSV", "a pytest test for validateuser on 50 different users" — and the agent writes the .tdc config, checks it with the engine, generates the file on your machine, and hands you the data together with the config that reproduces it.
+- `ai-agents/claude-code.md` — **Claude Code.** The plugin brings both parts at once: the skill, and the MCP server, which Claude Code starts on its own whenever a session needs it. It comes from two places — Anthropic's plugin directory or the project's GitHub marketplace. Pick one: installed both ways, the plugin is there twice, so the skill loads twice and two servers start.
+- `ai-agents/other-agents.md` — **Other agents.** Each of these agents reads skills, so one command makes TDC available in all of them. The MCP server is optional on top of it.
+- `ai-agents/working-with-the-agent.md` — **Working with the agent.** Describe the data the way you would to a colleague:
 
 ## Core Concepts
 

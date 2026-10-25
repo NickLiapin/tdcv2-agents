@@ -1,0 +1,75 @@
+# Claude Code
+
+The plugin brings both parts at once: the skill, and the MCP server, which Claude Code starts
+on its own whenever a session needs it. It comes from two places — Anthropic's plugin
+directory or the project's GitHub marketplace. Pick one: installed both ways, the plugin is
+there twice, so the skill loads twice and two servers start.
+
+## Install from the plugin directory
+
+The simplest way, with a Pro, Max, Team or Enterprise plan:
+
+1. Open **Customize → Plugins** in claude.ai or in the Claude app.
+2. In **Discover**, find **TDCv2 — Fake & Test Data Generator** and select **Add**.
+
+The plugin is saved to your account. Claude Code downloads it the next time you start a
+session signed in to that account — run `/reload-plugins` to load it in a session that is
+already open — and Cowork has it too. It updates by itself when a new release reaches the
+directory. To remove it, open it in **Customize → Plugins** and select **Remove** from its
+menu.
+
+Installed this way, it is named `tdcv2-test-data@anthropic-plugin-directory` in
+`claude plugin list`. The `tdcv2@tdcv2` commands below are for the GitHub marketplace only.
+
+## Install from the GitHub marketplace
+
+```bash
+claude plugin marketplace add NickLiapin/tdcv2-agents
+claude plugin install tdcv2@tdcv2
+```
+
+The first command adds the plugin's marketplace, which is its GitHub repository. The second
+installs the plugin for you, in every project. Start a new session afterward.
+
+To confirm it worked, run `claude plugin list`: it shows `tdcv2@tdcv2` with
+`Status: ✔ enabled`. Then `claude mcp list` shows the plugin's server, `plugin:tdcv2:tdcv2`,
+followed by `✔ Connected`. The first check of the server can take a few seconds, because the
+first start downloads it from npm.
+
+## Ask for data
+
+Ask in plain words, in any project:
+
+```text
+Generate 200 customers from 10 countries as CSV, with names that match the country.
+```
+
+Claude Code reads the skill, writes a `.tdc` config, checks it, generates the file in your
+project, and gives you both. [Working with the agent](./working-with-the-agent.md) shows
+what happens at each step and how to review the result.
+
+## Update and remove
+
+For a plugin installed from the GitHub marketplace:
+
+```bash
+claude plugin update tdcv2@tdcv2
+claude plugin uninstall tdcv2@tdcv2
+```
+
+`update` installs the newest release; it says so when you already have it. A new session
+picks the update up.
+
+## The skill or the server alone
+
+The plugin is the simple path. If you want one part only:
+
+```bash
+npx -y tdcv2-mcp@0.1.6 install-skill            # the skill, for you: ~/.claude/skills/tdcv2
+npx -y tdcv2-mcp@0.1.6 install-skill --project  # the skill, this project: ./.claude/skills/tdcv2
+claude mcp add tdcv2 -- npx -y tdcv2-mcp@0.1.6  # the server, this project
+```
+
+`install-skill` replaces an older copy of the skill in the same folder. `claude mcp add`
+registers the server for the project you run it in; add `--scope user` to have it in every
+project.
