@@ -17,7 +17,22 @@ export const PREVIEW_MAX = 50;
 export const IN_MEMORY_MAX = 5000;
 const PAGE_CHUNK = 20000;
 
-const ROOT = process.cwd();
+/**
+ * The project: TDCV2_PROJECT if set, else the folder the client starts the server in.
+ * A client that names its roots (MCP roots) sets it through useProject() — Claude
+ * Desktop, for one, starts servers in /, where there is no project to write into.
+ */
+let ROOT = resolve(process.env.TDCV2_PROJECT || process.cwd());
+const fixed = Boolean(process.env.TDCV2_PROJECT);
+/** The client said which folder it works in; TDCV2_PROJECT, when set, still wins. */
+export function useProject(dir) { if (!fixed && dir) ROOT = resolve(dir); }
+export const projectRoot = () => ROOT;
+/** The filesystem root is never a project: writing there fails or lands somewhere surprising. */
+const noProject = () => dirname(ROOT) === ROOT;
+const NO_PROJECT = () => `This server has no project folder — the client started it in ${ROOT}. ` +
+  'Give it one: set TDCV2_PROJECT to your project folder in the server\'s settings (Claude Desktop: "env": {"TDCV2_PROJECT": "/path/to/project"} ' +
+  'next to "command" in claude_desktop_config.json), or use a client that tells servers its folder (MCP roots). ' +
+  'A config passed as text can still be checked and previewed without one.';
 /** A path relative to the project, with forward slashes on every OS — the same text on Windows. */
 const relative = (from, to) => nativeRelative(from, to).split(sep).join('/');
 const OWN_ENGINE = dirname(dirname(fileURLToPath(import.meta.resolve('tdcv2'))));
@@ -35,7 +50,7 @@ export async function engine() {
     const found = pinned
       ? await lib.engine.loadEngine({ cwd: pinned, path: '', fallback: pinned })
       : await lib.engine.loadEngine({ cwd: ROOT, path: '', fallback: OWN_ENGINE });
-    if (!found) throw new Error('no tdcv2 engine could be loaded — install it in the project: npm i -D tdcv2@0.3.6');
+    if (!found) throw new Error('no tdcv2 engine could be loaded — install it in the project: npm i -D tdcv2@0.3.7');
     engines.set(ROOT, found);
   }
   return engines.get(ROOT);
@@ -44,6 +59,7 @@ export async function engine() {
 class ToolError extends Error {}
 
 function inside(p, what) {
+  if (noProject()) throw new ToolError(NO_PROJECT());
   const abs = resolve(ROOT, p);
   const rel = nativeRelative(ROOT, abs);
   if (rel.startsWith('..') || isAbsolute(rel)) throw new ToolError(`${what} must be inside the project folder (${ROOT}); got ${p}`);
@@ -62,7 +78,9 @@ const pickDiagnostic = (d) => ({
   code: d.code ?? null, severity: d.severity ?? 'error', line: d.line ?? null, column: d.column ?? null,
   message: d.message, hint: d.hint ?? null, suggestion: d.suggestion ?? null,
 });
-const diagLine = (d) => `${d.code ?? ''} ${d.line ?? '?'}:${d.column ?? '?'} ${d.message}${d.hint ? ` — ${d.hint}` : ''}${d.suggestion ? ` (did you mean "${d.suggestion}"?)` : ''}`.trim();
+// The engine's suggestion is a whole phrase ('did you mean "fit"?'); older ones gave the bare word.
+const suggest = (s) => (/^did you mean\b/i.test(s) ? ` (${s})` : ` (did you mean "${s}"?)`);
+const diagLine = (d) => `${d.code ?? ''} ${d.line ?? '?'}:${d.column ?? '?'} ${d.message}${d.hint ? ` — ${d.hint}` : ''}${d.suggestion ? suggest(d.suggestion) : ''}`.trim();
 
 /**
  * "assert failed on row 16: a fee is never negative\n  Fee >= 0   with Fee = -3"
@@ -192,7 +210,7 @@ export async function tdcFindPacks({ query, locale, limit = 15 }) {
   const r = lib.packs.searchPacks(mod, { words: [query], locale, limit: Math.min(limit, 30) });
   const install = (loc) => [`Install it: tdc_pack_add with ids ["${loc}"] — it sets the project up for packs first if it is not yet.`];
   const text = lib.packs.formatPackSearch(r, { install }).join('\n')
-    .replaceAll('npx -y tdcv2@0.3.6 check --brief', 'tdc_check'); // this client checks through the tool
+    .replaceAll('npx -y tdcv2@0.3.7 check --brief', 'tdc_check'); // this client checks through the tool
   return { text, data: r };
 }
 
@@ -210,6 +228,7 @@ function engineCli(root, args) {
  * `tdcv2 init --yes`, as the engine's own message asks.
  */
 export async function tdcPackAdd({ ids }) {
+  if (noProject()) throw new ToolError(NO_PROJECT());
   const { mod, root } = await engine();
   const want = [...new Set(ids.map((s) => s.trim()).filter(Boolean))];
   if (!want.length) throw new ToolError('give at least one pack id, such as "fr" (a language) or "france" (a country); tdc_find_packs names the missing one');
@@ -266,4 +285,4 @@ export async function tdcFormat({ config }) {
   return { text: typeof f === 'string' ? f : f?.text ?? config, data: {} };
 }
 
-export { ToolError, guide, ROOT };
+export { ToolError, guide };

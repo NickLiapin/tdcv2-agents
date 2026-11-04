@@ -27,8 +27,8 @@ export const lib = {
  */
 const PREFACE = `> **Using this through the tdcv2 MCP server.** The guide below was written for agents with a
 > terminal. Here, use the tools instead:
-> \`npx -y tdcv2@0.3.6 check\` → **tdc_check** · \`npx -y tdcv2@0.3.6 <file> --count 5\` → **tdc_generate** (preview) ·
-> \`npx -y tdcv2@0.3.6 <file> -o <out>\` → **tdc_generate** with \`output\` · \`npx -y tdcv2@0.3.6 pack add <locale>\` (and its
+> \`npx -y tdcv2@0.3.7 check\` → **tdc_check** · \`npx -y tdcv2@0.3.7 <file> --count 5\` → **tdc_generate** (preview) ·
+> \`npx -y tdcv2@0.3.7 <file> -o <out>\` → **tdc_generate** with \`output\` · \`npx -y tdcv2@0.3.7 pack add <locale>\` (and its
 > \`init\`) → **tdc_pack_add** · \`scripts/find-packs.mjs\` →
 > **tdc_find_packs** · \`scripts/peek.mjs\` → **tdc_peek** · pages under \`<skill>/\` and \`reference/\` →
 > **tdc_read_docs**. Write the config into a \`.tdc\` file in the project with your file tools and pass its

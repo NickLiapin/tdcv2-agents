@@ -10,7 +10,7 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { mkdtempSync, writeFileSync, readFileSync, rmSync, existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
-import { join, dirname } from 'node:path';
+import { join, dirname, parse } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -23,7 +23,7 @@ writeFileSync(join(project, 'orders.tdc'), readFileSync(join(here, 'fixtures', '
 
 const client = new Client({ name: 'smoke', version: '0' });
 await client.connect(new StdioClientTransport({
-  command: process.execPath, args: [join(serverRoot, 'src', 'cli.mjs')], cwd: project, // as `npx -y tdcv2-mcp@0.1.6` starts it
+  command: process.execPath, args: [join(serverRoot, 'src', 'cli.mjs')], cwd: project, // as `npx -y tdcv2-mcp@0.1.7` starts it
   env: { ...process.env, TDCV2_ENGINE: process.env.TDCV2_ENGINE ?? ownEngine }, // another engine: TDCV2_ENGINE=<package folder>
 }));
 
@@ -53,6 +53,7 @@ say(fp.structuredContent?.matches?.[0]?.path === 'person.lastName', `find_packs:
 
 const TYPO = '<tdc><env count="2" seed="s"><sequence name="A"><gen type="text" value="x" wat="1"/></sequence></env><block><line><data>${{A}}</data></line></block></tdc>';
 const bad = await call('tdc_check', { config: TYPO });
+say(!/did you mean "did you mean/.test(text(bad)) && /did you mean "/.test(text(bad)), 'check: a suggestion is said once, not "did you mean \"did you mean …\""');
 say(bad.structuredContent?.valid === false && bad.structuredContent.diagnostics?.[0]?.code === 'TDC015', `check: typo → ${bad.structuredContent?.diagnostics?.[0]?.code}`);
 const NOSEED = '<tdc><env count="2"><sequence name="A"><gen type="text" value="x"/></sequence></env><block><line><data>${{A}}</data></line></block></tdc>';
 const ns = await call('tdc_check', { config: NOSEED });
@@ -116,6 +117,35 @@ const badId = await call('tdc_pack_add', { ids: ['xx-nope'] });
 say(badId.isError && plain(badId).includes('unknown bundle'), 'pack_add: an unknown id is refused, with the list of ids');
 
 await client.close();
+
+// Started in / — as Claude Desktop starts servers: no project until one is named.
+{
+  const { ListRootsRequestSchema } = await import('@modelcontextprotocol/sdk/types.js');
+  const { pathToFileURL } = await import('node:url');
+  const fsRoot = parse(project).root;
+  const start = async (env, roots) => {
+    const c = new Client({ name: 'desktop', version: '0' }, roots ? { capabilities: { roots: { listChanged: true } } } : {});
+    if (roots) c.setRequestHandler(ListRootsRequestSchema, () => ({ roots: [{ uri: pathToFileURL(roots).href, name: 'project' }] }));
+    await c.connect(new StdioClientTransport({ command: process.execPath, args: [join(serverRoot, 'src', 'cli.mjs')], cwd: fsRoot,
+      env: { ...process.env, TDCV2_ENGINE: process.env.TDCV2_ENGINE ?? ownEngine, ...env } }));
+    return c;
+  };
+  const ask = (c, output) => c.callTool({ name: 'tdc_generate', arguments: { path: 'orders.tdc', output } });
+  let c = await start({});
+  const none = await ask(c, 'out/desktop.csv');
+  say(none.isError && /no project folder/.test(none.content[0].text) && /TDCV2_PROJECT/.test(none.content[0].text), 'started in /: refuses to write, says how to name the project');
+  const preview = await c.callTool({ name: 'tdc_generate', arguments: { config: NOSEED.replace('<env count="2">', '<env count="2" seed="s">'), preview: 2 } });
+  say(!preview.isError, 'started in /: a config as text still previews');
+  await c.close();
+  c = await start({ TDCV2_PROJECT: project });
+  const viaEnv = await ask(c, 'out/via-env.csv');
+  say(!viaEnv.isError && existsSync(join(project, 'out', 'via-env.csv')), 'TDCV2_PROJECT: writes into that folder');
+  await c.close();
+  c = await start({}, project);
+  const viaRoots = await ask(c, 'out/via-roots.csv');
+  say(!viaRoots.isError && existsSync(join(project, 'out', 'via-roots.csv')), 'MCP roots: the client\'s folder is the project');
+  await c.close();
+}
 
 // install-skill: the same package puts the skill into a skills folder.
 const { spawnSync } = await import('node:child_process');

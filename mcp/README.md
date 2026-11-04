@@ -8,7 +8,7 @@ anywhere — the server only runs the engine locally.
 
 It is the same knowledge as the TDCv2 skill, as tools — for clients without a terminal, or
 that prefer tools to skills. The skill itself ships in this package:
-`npx -y tdcv2-mcp@0.1.6 install-skill` puts it where your agent looks for skills (`--help` for
+`npx -y tdcv2-mcp@0.1.7 install-skill` puts it where your agent looks for skills (`--help` for
 the options).
 
 
@@ -17,19 +17,32 @@ the options).
 Claude Code:
 
 ```sh
-claude mcp add tdcv2 -- npx -y tdcv2-mcp@0.1.6
+claude mcp add tdcv2 -- npx -y tdcv2-mcp@0.1.7
 ```
 
-Claude Desktop, Cursor and other clients — the usual `mcpServers` entry:
+Cursor and other clients — the usual `mcpServers` entry:
 
 ```json
-{ "mcpServers": { "tdcv2": { "command": "npx", "args": ["-y", "tdcv2-mcp@0.1.6"] } } }
+{ "mcpServers": { "tdcv2": { "command": "npx", "args": ["-y", "tdcv2-mcp@0.1.7"] } } }
+```
+
+Claude Desktop starts servers in `/`, not in a project, so name the folder the files go to
+(`claude_desktop_config.json`):
+
+```json
+{ "mcpServers": { "tdcv2": { "command": "npx", "args": ["-y", "tdcv2-mcp@0.1.7"],
+  "env": { "TDCV2_PROJECT": "/path/to/project" } } } }
 ```
 
 Windows: use `"command": "npx.cmd"` if the client cannot start `npx`.
 
-The server works in the folder the client starts it in — the project. It reads `.tdc`
-files and writes generated files only inside that folder. `tdc_pack_add` puts packs where
+## Where it works
+
+The project is `TDCV2_PROJECT` if set; else the folder the client names as its root (MCP
+roots), if it names one; else the folder the client starts the server in. The server reads
+`.tdc` files and writes generated files only inside the project. Started in the
+filesystem root with no project named, it writes nothing and says how to name one — a
+config passed as text can still be checked and previewed. `tdc_pack_add` puts packs where
 the project's TDCv2 config says (by default `tdcv2-packs/` in the project).
 
 ## Tools
@@ -49,7 +62,7 @@ Also a prompt, `tdcv2_guide`, and resources `tdcv2://guide`, `tdcv2://traps`,
 
 ## Which engine
 
-The project's own `tdcv2` if it has one (`npm i -D tdcv2@0.3.6`), else the server's own
+The project's own `tdcv2` if it has one (`npm i -D tdcv2@0.3.7`), else the server's own
 dependency — the version this release is checked with. `TDCV2_ENGINE=<package folder>`
 pins one.
 

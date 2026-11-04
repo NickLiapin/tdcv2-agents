@@ -8,7 +8,9 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
-import { tdcCheck, tdcGenerate, tdcFindPacks, tdcPackAdd, tdcPeek, tdcReadDocs, tdcFormat, ToolError, guide, PREVIEW_MAX } from './tools.mjs';
+import { tdcCheck, tdcGenerate, tdcFindPacks, tdcPackAdd, tdcPeek, tdcReadDocs, tdcFormat, ToolError, guide, PREVIEW_MAX, useProject } from './tools.mjs';
+import { RootsListChangedNotificationSchema } from '@modelcontextprotocol/sdk/types.js';
+import { fileURLToPath } from 'node:url';
 import { readPage } from './skill.mjs';
 
 const pkg = JSON.parse((await import('node:fs')).readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
@@ -24,7 +26,7 @@ const server = new McpServer(
       'installs a missing language or country), tdc_check until ' +
       'clean, and tdc_generate to preview rows or write the file. Hand over the config with the data; keep count and seed ' +
       'inside <env> so it reproduces the file. If the TDCv2 skill is loaded too, these tools are its steps: its ' +
-      '`npx -y tdcv2@0.3.6 …` commands and these tools run the same engine — use either, the tools where there is no terminal.',
+      '`npx -y tdcv2@0.3.7 …` commands and these tools run the same engine — use either, the tools where there is no terminal.',
   },
 );
 
@@ -35,7 +37,9 @@ const server = new McpServer(
  * metadata eighteen times and never its text. Whichever part a client shows, the
  * model gets the substance. A ToolError is the caller's mistake.
  */
+let rootsReady = Promise.resolve();
 const wrap = (fn) => async (args) => {
+  await rootsReady; // the project folder the client names, if it names one
   try {
     const { text, data } = await fn(args);
     return { content: [{ type: 'text', text }], structuredContent: { text, ...data } };
@@ -131,5 +135,19 @@ for (const [name, title] of [['guide', 'TDCv2 guide'], ['traps', 'TDCv2 traps'],
   server.registerResource(name, `tdcv2://${name}`, { title, mimeType: 'text/markdown' },
     async (uri) => ({ contents: [{ uri: uri.href, mimeType: 'text/markdown', text: readPage(name).text }] }));
 }
+
+// The client's own folder, when it names one (MCP roots): the first file:// root is the project.
+async function readRoots() {
+  if (!server.server.getClientCapabilities()?.roots) return;
+  try {
+    const { roots } = await server.server.listRoots();
+    const first = roots.find((r) => r.uri.startsWith('file://'));
+    if (first) useProject(fileURLToPath(first.uri));
+  } catch { /* the client said it has roots but did not answer: keep the folder we have */ }
+}
+// Tools wait for the answer, but not on a client that never gives one.
+const settle = () => { rootsReady = Promise.race([readRoots(), new Promise((r) => setTimeout(r, 3000))]); };
+server.server.oninitialized = settle;
+server.server.setNotificationHandler(RootsListChangedNotificationSchema, settle);
 
 await server.connect(new StdioServerTransport());

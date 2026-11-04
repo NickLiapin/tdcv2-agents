@@ -34,20 +34,21 @@ Install one way, not both — otherwise the skill loads twice and two servers st
 where your agent looks for it:
 
 ```sh
-npx -y tdcv2-mcp@0.1.6 install-skill            # ~/.claude/skills/tdcv2
-npx -y tdcv2-mcp@0.1.6 install-skill --agents   # ~/.agents/skills/tdcv2
-npx -y tdcv2-mcp@0.1.6 install-skill --project  # ./.claude/skills/tdcv2
-npx -y tdcv2-mcp@0.1.6 install-skill --dir <skills folder>
+npx -y tdcv2-mcp@0.1.7 install-skill            # ~/.claude/skills/tdcv2
+npx -y tdcv2-mcp@0.1.7 install-skill --agents   # ~/.agents/skills/tdcv2
+npx -y tdcv2-mcp@0.1.7 install-skill --project  # ./.claude/skills/tdcv2
+npx -y tdcv2-mcp@0.1.7 install-skill --dir <skills folder>
 ```
 
 **Any MCP client** (Claude Desktop, Cursor, VS Code…):
 
 ```json
-{ "mcpServers": { "tdcv2": { "command": "npx", "args": ["-y", "tdcv2-mcp@0.1.6"] } } }
+{ "mcpServers": { "tdcv2": { "command": "npx", "args": ["-y", "tdcv2-mcp@0.1.7"] } } }
 ```
 
-On Windows use `"command": "npx.cmd"` if the client cannot start `npx`. Everything needs
-Node.js 20 or newer.
+Claude Desktop starts servers in `/`: add `"env": {"TDCV2_PROJECT": "/path/to/project"}` to
+that entry so the files have a folder to go to. On Windows use `"command": "npx.cmd"` if the
+client cannot start `npx`. Everything needs Node.js 20 or newer.
 
 Step by step for each agent and client: [TDC for AI agents](https://nickliapin.github.io/tdcv2/docs/ai-agents/overview).
 
@@ -64,10 +65,10 @@ folder it is started in.
 
 Network access, all of it:
 
-- the plugin starts the server with `npx -y tdcv2-mcp@0.1.6`, its own version
+- the plugin starts the server with `npx -y tdcv2-mcp@0.1.7`, its own version
   (`scripts/mcp-launch.mjs`), so the first start downloads that exact version and its
   dependencies, the TDCv2 engine among them, from the npm registry;
-- `npx -y tdcv2-mcp@0.1.6 …` in the commands above does the same, and so does `npx -y tdcv2@0.3.6 …`,
+- `npx -y tdcv2-mcp@0.1.7 …` in the commands above does the same, and so does `npx -y tdcv2@0.3.7 …`,
   the exact engine version the agent runs;
 - with an engine of another version, the agent may read that version's doc page from
   `raw.githubusercontent.com`;
@@ -80,7 +81,7 @@ Nothing else is fetched, and nothing is sent. The full policy: [PRIVACY.md](PRIV
 
 ## Versions
 
-This release, 0.1.6, is checked against TDCv2 0.3.6. The skill's reference is
+This release, 0.1.7, is checked against TDCv2 0.3.7. The skill's reference is
 built from the engine's documentation for that version; with another engine version the
 agent reads that version's pages, and the engine's own `check` has the last word.
 
