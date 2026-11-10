@@ -155,7 +155,9 @@ the whole set, so `sequential` is reachable from the config and nowhere else.
 | `src`      | Service URL (the same attribute as the file path above) | [HTTP service](../generators/http.md) |
 | `in`       | Sequence whose value is sent with each row              | [HTTP service](../generators/http.md) |
 | `on_error` | `fail` (default) or `empty` when a request fails        | [HTTP service](../generators/http.md) |
-| `timeout`  | Seconds to wait for a response (default 30)             | [HTTP service](../generators/http.md) |
+| `timeout`  | Seconds to wait for one batch's answer (default 30)     | [HTTP service](../generators/http.md) |
+| `batch`    | Rows sent in one request (default 10000)                | [HTTP service](../generators/http.md) |
+| `parallel` | Requests on the wire at once (default 1)                | [HTTP service](../generators/http.md) |
 | `secret`   | Key each request is signed with — `env:`, `file:` or a literal | [HTTP service](../generators/http.md#proving-the-request-came-from-tdc) |
 
 ## Output & formatting

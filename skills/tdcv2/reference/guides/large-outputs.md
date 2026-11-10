@@ -45,10 +45,10 @@ Two engines run under "disk", and TDC picks between them **from your config**:
   compound column, which a worker resolving a row on its own has no way to reproduce. That
   one stays on a single thread and says so.
 
-Disk mode has a third destination, and it is the one worth knowing about: seven config
+Disk mode has a third destination, and it is the one worth knowing about: six config
 shapes send the run back to the small in-memory engine, where memory grows with `count`.
 One of them is the commonest way of writing `uniq`. [Which engine runs your
-config](#which-engine-runs-your-config) lists all seven.
+config](#which-engine-runs-your-config) lists all six.
 
 The choice is **deterministic — based on the config, not the hardware** — so the same
 config gives the same result on every machine (reproducibility across machines is a core
@@ -57,7 +57,7 @@ TDC guarantee).
 ## Which engine runs your config
 
 `mode="disk"` asks for bounded memory. It does not always get it. TDC reads the config
-first, and seven shapes route the run to the **small in-memory engine**, whose memory grows
+first, and six shapes route the run to the **small in-memory engine**, whose memory grows
 with the row count. They are checked in this order.
 
 | Shape                                                                                                                                                                | Why it cannot stream                                                                                                                           |
@@ -65,7 +65,6 @@ with the row count. They are checked in this order.
 | A [`template`](../generators/template.md) `value` that interpolates a field — `common.vehicle.model.${{Brand}}`                                                     | The address is not known until the sibling column has a value, so it has to be resolved per row against the other sequences.                   |
 | [`weight=`](../generators/file.md) and [`row=`](../generators/file.md) on the same `file` generator                                                                | Weighting a linked row draw to an exact quota needs the file's totals up front. **`weight=` on its own streams** — it is the pair that cannot.                                                                |
 | `uniq="true"` on a single drawn column, alone or beside literal text                                                                                                 | The draw is **without replacement**, so the pool and the set already taken both span the whole column.                                         |
-| [`type="http"`](../generators/http.md) — a network call                                                                                                             | It is neither reproducible nor synchronous, and resolves in an async pass after the rest of the registry is built.                             |
 | A `percent=` inside a [`<switch>`](../constructs/switch.md#a-share-inside-a-branch) branch keyed on several values — `is="US\|CA\|MX"` — or inside `<default>`      | The share is a quota over the branch's own rows, and those rows are a union of subsets, or what every other branch left behind. Neither can be numbered one row at a time. |
 | A column **derived from another column** — a [running total](../generators/running.md), a [statistic](../generators/stat.md), a [date measured from another column](../generators/date.md), a formula | Each reads a column that has to exist first, which the streaming builder refuses by name. |
 | A bare [`parent="Name"`](../guides/hierarchical-dependencies.md) with no value                                                                                       | It narrows a column to the rows where the parent produced anything, and that is not knowable without the parent's whole column. |
@@ -135,7 +134,7 @@ tdcv2: stream mode: uniq (a whole-column rearrangement) ("K") is not supported y
 You normally never see a message like that. The router picks the engine itself, and a
 refusal only surfaces when a config _names_ a streaming engine and so has asked to be told.
 
-A downgrade is not a bug. Each of the seven shapes is a promise about a whole column, and an
+A downgrade is not a bug. Each of the six shapes is a promise about a whole column, and an
 engine that answered it from one row would emit data that looks right and is not. What it
 costs is memory: on the in-memory engine the whole column is held, so a run using one of
 these shapes is bounded by RAM rather than by disk. [`preflight()`](#preflight--a-memory-risk-estimate)
@@ -457,7 +456,7 @@ generators) and the file is big enough, TDC uses `cores − 1` (7 on an 8-core b
 otherwise it quietly runs on one core:
 
 ```bash
-npx tdcv2@0.3.7 customers.tdc -o customers.csv
+npx tdcv2@0.4.0 customers.tdc -o customers.csv
 ```
 
 The result is **byte-identical regardless of core count** (same seed): each core computes
@@ -517,7 +516,7 @@ Set it by hand with [`--jobs N`](../reference/cli.md) if you want (`--jobs 1` fo
 single-threaded); the output is identical either way:
 
 ```bash
-npx tdcv2@0.3.7 customers.tdc --jobs 8 -o customers.csv
+npx tdcv2@0.4.0 customers.tdc --jobs 8 -o customers.csv
 ```
 
 Sometimes parallelism does **not** kick in, and the rule is narrower than it looks. Both

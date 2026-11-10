@@ -23,7 +23,7 @@ writeFileSync(join(project, 'orders.tdc'), readFileSync(join(here, 'fixtures', '
 
 const client = new Client({ name: 'smoke', version: '0' });
 await client.connect(new StdioClientTransport({
-  command: process.execPath, args: [join(serverRoot, 'src', 'cli.mjs')], cwd: project, // as `npx -y tdcv2-mcp@0.1.7` starts it
+  command: process.execPath, args: [join(serverRoot, 'src', 'cli.mjs')], cwd: project, // as `npx -y tdcv2-mcp@0.4.0` starts it
   env: { ...process.env, TDCV2_ENGINE: process.env.TDCV2_ENGINE ?? ownEngine }, // another engine: TDCV2_ENGINE=<package folder>
 }));
 
@@ -90,6 +90,30 @@ say(text(lt).includes('<pool name="Books"') && text(lt).includes('each` or pools
 writeFileSync(join(project, 'two.json'), JSON.stringify({ authors: [{ id: 1 }, { id: 2 }], books: [{ id: 1, author_id: 2 }, { id: 2, author_id: 7 }] }));
 const pt = await call('tdc_peek', { path: 'two.json' });
 say(text(pt).includes('books.author_id → authors.id: 1 of 2 not found'), 'peek: an object of arrays, a link that points nowhere is reported');
+
+// http: the column goes to the service in batches (engine 0.4+), the file is the CLI's byte for byte.
+{
+  const { createServer } = await import('node:http');
+  const { spawn } = await import('node:child_process');
+  const seen = [];
+  const svc = createServer((req, res) => {
+    let body = ''; req.on('data', (c) => (body += c)); req.on('end', () => {
+      seen.push(Number(req.headers['x-tdc-offset'] ?? 0));
+      res.end((body === '' ? [] : body.split('\n')).map((l) => createHash('sha256').update(l).digest('hex').slice(0, 12)).join('\n'));
+    });
+  });
+  await new Promise((ok) => svc.listen(0, '127.0.0.1', ok));
+  const HTTP = `<tdc><env count="25000" seed="h" local="en"><sequence name="Pass"><gen type="regex" value="[a-z]{8}"/></sequence><sequence name="Hash"><gen type="http" src="http://127.0.0.1:${svc.address().port}/" in="Pass"/></sequence></env><block><line><data>\${{Pass}},\${{Hash}}</data></line></block></tdc>`;
+  writeFileSync(join(project, 'hashed.tdc'), HTTP);
+  const hr = await call('tdc_generate', { path: 'hashed.tdc', output: 'out/hashed.csv' });
+  const batches = seen.slice();
+  const cliOut = join(project, 'out', 'hashed-cli.csv');
+  const engineCli = join(process.env.TDCV2_ENGINE ?? ownEngine, 'dist', 'cli', 'main.js');
+  const code = await new Promise((ok) => spawn(process.execPath, [engineCli, join(project, 'hashed.tdc'), '-o', cliOut], { stdio: 'ignore' }).on('exit', ok));
+  const same = code === 0 && existsSync(join(project, 'out', 'hashed.csv')) && readFileSync(join(project, 'out', 'hashed.csv'), 'utf8') === readFileSync(cliOut, 'utf8');
+  say(!hr.isError && same && batches.join() === '0,10000,20000', `generate: http column in ${batches.length} batches (offsets ${batches.join(', ')}), same bytes as the CLI${hr.isError ? ` — ${plain(hr).slice(0, 160)}` : ''}`);
+  svc.close();
+}
 
 const pr = await client.getPrompt({ name: 'tdcv2_guide' });
 say(pr.messages?.[0]?.content?.text?.includes('# TDCv2'), 'prompt: tdcv2_guide');

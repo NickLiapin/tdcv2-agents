@@ -6,12 +6,12 @@
     "url": "https://github.com/NickLiapin/tdcv2-agents",
     "source": "github"
   },
-  "version": "0.1.7",
+  "version": "0.4.0",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "tdcv2-mcp",
-      "version": "0.1.7",
+      "version": "0.4.0",
       "transport": {
         "type": "stdio"
       }

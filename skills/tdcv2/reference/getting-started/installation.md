@@ -11,11 +11,11 @@ bytes — a gigabyte of output from the same config comes out identical in each.
 Each one also carries the same command line, so nothing needs another
 language's toolchain to run a config.
 
-All five are published: **0.3.7** on npm, PyPI, NuGet and crates.io, and
-**0.3.6** on Maven Central — usually the same number, occasionally one
+All five are published: **0.4.0** on npm, PyPI, NuGet and crates.io, and
+**0.3.7** on Maven Central — usually the same number, occasionally one
 behind, because Central caps how many releases it accepts from a project each month
 (see [the Java page](../bindings/java.md)). Equal version numbers are not a
-coincidence: where they match, `tdcv2 0.3.7` from any of them answers a
+coincidence: where they match, `tdcv2 0.4.0` from any of them answers a
 config the same way, down to the byte.
 
 > [!TIP]
@@ -33,8 +33,8 @@ own.
 **Requirements:** Node.js **20.0.0** or newer.
 
 ```bash
-npm install -D tdcv2@0.3.7
-npx tdcv2@0.3.7 init
+npm install -D tdcv2@0.4.0
+npx tdcv2@0.4.0 init
 ```
 
 That is the whole installation. `init` writes a config and a `tdcv2-examples/`
@@ -78,7 +78,7 @@ lives in the [CLI reference](../reference/cli.md).
 One command gets you both the library and the `tdcv2` command:
 
 ```bash
-pip install tdcv2==0.3.7
+pip install tdcv2==0.4.0
 tdcv2 init
 ```
 
@@ -99,14 +99,14 @@ The library is one dependency:
 <dependency>
   <groupId>io.github.nickliapin</groupId>
   <artifactId>tdcv2</artifactId>
-  <version>0.3.6</version>
+  <version>0.3.7</version>
 </dependency>
 ```
 
 Gradle, in `build.gradle.kts`:
 
 ```kotlin
-implementation("io.github.nickliapin:tdcv2:0.3.6")
+implementation("io.github.nickliapin:tdcv2:0.3.7")
 ```
 
 A starter set of data packs travels inside the jar, so the example above runs
@@ -119,8 +119,8 @@ nothing but a JDK. It sits under the same coordinates as the library, told apart
 by the `cli` classifier:
 
 ```bash
-curl -LO https://repo1.maven.org/maven2/io/github/nickliapin/tdcv2/0.3.6/tdcv2-0.3.6-cli.jar
-java -jar tdcv2-0.3.6-cli.jar init
+curl -LO https://repo1.maven.org/maven2/io/github/nickliapin/tdcv2/0.3.7/tdcv2-0.3.7-cli.jar
+java -jar tdcv2-0.3.7-cli.jar init
 ```
 
 Worth an alias: `alias tdcv2='java -jar /path/to/tdcv2-cli.jar'`, after which
@@ -136,7 +136,7 @@ The DSL and behavior are identical to the npm version. See
 The library is one package:
 
 ```bash
-dotnet add package Tdcv2 --version 0.3.7
+dotnet add package Tdcv2 --version 0.4.0
 ```
 
 A starter set of data packs is embedded in the assembly, so it works with
@@ -147,7 +147,7 @@ so the CLI is a .NET tool package of its own — install it globally and the com
 is on your PATH:
 
 ```bash
-dotnet tool install --global Tdcv2.Cli --version 0.3.7
+dotnet tool install --global Tdcv2.Cli --version 0.4.0
 tdcv2 init
 ```
 
@@ -160,8 +160,8 @@ The DSL and behavior are identical to the npm version.
 One crate carries both the library and the command line:
 
 ```bash
-cargo add tdcv2@0.3.7      # as a dependency
-cargo install tdcv2@0.3.7  # as a command
+cargo add tdcv2@0.4.0      # as a dependency
+cargo install tdcv2@0.4.0  # as a command
 tdcv2 init
 ```
 
@@ -224,11 +224,11 @@ second artefact:
 
 | Installed with | The command                                                                                                |
 | :------------- | :--------------------------------------------------------------------------------------------------------- |
-| Node.js        | `npx tdcv2@0.3.7 tdcv2-examples/01-starter.tdc`                                                                  |
+| Node.js        | `npx tdcv2@0.4.0 tdcv2-examples/01-starter.tdc`                                                                  |
 | Python         | `tdcv2 tdcv2-examples/01-starter.tdc`                                                                      |
-| Rust           | `tdcv2 tdcv2-examples/01-starter.tdc`, after `cargo install tdcv2@0.3.7`                                         |
-| C#             | `tdcv2 demo.tdc`, after `dotnet tool install --global Tdcv2.Cli --version 0.3.7`                                           |
-| Java           | `java -jar tdcv2-0.3.6-cli.jar tdcv2-examples/01-starter.tdc` — the `cli` classifier of the library's own coordinates            |
+| Rust           | `tdcv2 tdcv2-examples/01-starter.tdc`, after `cargo install tdcv2@0.4.0`                                         |
+| C#             | `tdcv2 demo.tdc`, after `dotnet tool install --global Tdcv2.Cli --version 0.4.0`                                           |
+| Java           | `java -jar tdcv2-0.3.7-cli.jar tdcv2-examples/01-starter.tdc` — the `cli` classifier of the library's own coordinates            |
 
 From the repository root, `./run demo.tdc` is the shortest of them all.
 
@@ -357,7 +357,7 @@ tdcv2 pack add en usa # download and wire up the packs you want
 ```
 
 > [!NOTE]
-> On an npm install every one of those is `npx tdcv2@0.3.7 …` — the command lives in
+> On an npm install every one of those is `npx tdcv2@0.4.0 …` — the command lives in
 > `node_modules/.bin`. pip, cargo and `dotnet tool install -g` put `tdcv2` on your
 > PATH, so there the line above is exactly what you type.
 

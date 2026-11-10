@@ -144,8 +144,8 @@ export function searchPacks(tdc, { words, locale, limit = 15, respelled }) {
 
 /** How to install a missing locale, from a terminal. The MCP server words it as its tool. */
 export const installLines = (locale) => [
-  'Install it:  npx -y tdcv2@0.3.7 init --yes --no-examples   (once per project, if tdcv2.config.json is missing)',
-  `             npx -y tdcv2@0.3.7 pack add ${locale}`,
+  'Install it:  npx -y tdcv2@0.4.0 init --yes --no-examples   (once per project, if tdcv2.config.json is missing)',
+  `             npx -y tdcv2@0.4.0 pack add ${locale}`,
 ];
 
 /** The result as the lines scripts/find-packs.mjs prints. */
@@ -164,7 +164,7 @@ export function formatPackSearch(r, { install = installLines } = {}) {
     } else {
       out.push(`This tdcv2 (${r.engine}) lists only its bundled packs (${r.installed.join(', ')}), not ones added with \`pack add\`.`);
       out.push(`If "${r.locale}" is already added: write the path you expect, set local="${r.locale}", and run`);
-      out.push('`npx -y tdcv2@0.3.7 check --brief` — paths differ between locales, and TDC217 names where it exists.');
+      out.push('`npx -y tdcv2@0.4.0 check --brief` — paths differ between locales, and TDC217 names where it exists.');
       out.push('If not added yet:');
     }
     out.push(...install(r.locale));

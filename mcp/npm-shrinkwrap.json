@@ -1,16 +1,16 @@
 {
   "name": "tdcv2-mcp",
-  "version": "0.1.7",
+  "version": "0.4.0",
   "lockfileVersion": 3,
   "requires": true,
   "packages": {
     "": {
       "name": "tdcv2-mcp",
-      "version": "0.1.7",
+      "version": "0.4.0",
       "license": "MIT",
       "dependencies": {
         "@modelcontextprotocol/sdk": "1.30.1",
-        "tdcv2": "0.3.7",
+        "tdcv2": "0.4.0",
         "zod": "4.6.5"
       },
       "bin": {
@@ -1520,12 +1520,12 @@
       }
     },
     "node_modules/tdcv2": {
-      "version": "0.3.7",
-      "resolved": "https://registry.npmjs.org/tdcv2/-/tdcv2-0.3.7.tgz",
-      "integrity": "sha512-DNSfM2mJkeSC1/SuF+ijGMmCpzMtv6DK9gkwFPVIWNZgeE74UrgwCcVZ90erkfyr/jmxGyWfjZ/8Thc0UGYYlQ==",
+      "version": "0.4.0",
+      "resolved": "https://registry.npmjs.org/tdcv2/-/tdcv2-0.4.0.tgz",
+      "integrity": "sha512-g/uQic4773+oT9bRQ4ueaX/8XFjKEckPdmsYBrMow6WymYApQ6CTqXRrZ3cNk/0GjnkbN045xPHdoKwP2qFWcA==",
       "license": "MIT",
       "dependencies": {
-        "@inquirer/prompts": "^8.7.4",
+        "@inquirer/prompts": "^8.7.5",
         "antlr4ng": "^3.0.16",
         "fflate": "^0.8.3",
         "jsep": "^1.4.0"
